@@ -10,8 +10,6 @@ import (
 	"unicode"
 )
 
-var seq = []byte{'m', 'u', 'l', '(', ',', ')'}
-
 type MulReader struct {
 	State  int // index of slice seq
 	reader *bufio.Reader
@@ -31,6 +29,22 @@ func (m *MulReader) Reset() {
 	m.State = 0
 }
 
+// read until the char matched the seq, return true if fully matched
+// return false + index of the mismatched byte + last byte read, if input is not fully matched
+func (m *MulReader) readSeq(seq []byte) (bool, error) {
+	reader := m.reader
+	for i := range seq {
+		char, err := reader.ReadByte()
+		if err != nil {
+			return false, err
+		}
+		if char != seq[i] {
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
 // return false if EOF
 func (m *MulReader) Read() (int, int, error) {
 	reader := m.reader
@@ -42,12 +56,17 @@ func (m *MulReader) Read() (int, int, error) {
 		}
 		fmt.Println(m.State, string(char), a, b, m.buf.String())
 		switch m.State {
-		case 0:
-			if char != 'm' {
+
+		case 0: // default state
+			switch char {
+			case 'm':
 				m.Reset()
-				continue
+				m.State = 1
+			case 'd':
+				m.State = 7
+			default:
+				m.Reset()
 			}
-			m.State = 1
 
 		case 1:
 			if char != 'u' {
@@ -122,6 +141,82 @@ func (m *MulReader) Read() (int, int, error) {
 			} else {
 				m.Reset()
 			}
+		case 7:
+			switch char {
+			case 'o':
+				m.State = 8
+			default:
+				m.Reset()
+			}
+		case 8:
+			switch char {
+			case 'n':
+				m.State = 9
+			default:
+				m.Reset()
+			}
+		case 9:
+			switch char {
+			case '\'':
+				m.State = 10
+			default:
+				m.Reset()
+			}
+		case 10:
+			switch char {
+			case 't':
+				m.State = 11
+			default:
+				m.Reset()
+			}
+		case 11:
+			switch char {
+			case '(':
+				m.State = 12
+			default:
+				m.Reset()
+			}
+
+		case 12:
+			switch char {
+			case ')':
+				m.State = 13
+			default:
+				m.Reset()
+			}
+
+		case 13: // trap state
+			switch char {
+			case 'd':
+				m.State = 14
+			default:
+				m.State = 13
+			}
+
+		case 14:
+			switch char {
+			case 'o':
+				m.State = 15
+			default:
+				m.State = 13
+			}
+
+		case 15:
+			switch char {
+			case '(':
+				m.State = 16
+			default:
+				m.State = 13
+			}
+
+		case 16:
+			switch char {
+			case ')':
+				m.Reset() // reset back to default state
+
+			default:
+				m.State = 13
+			}
 
 		}
 	}
@@ -141,3 +236,8 @@ func main() {
 	}
 	fmt.Println(score)
 }
+
+// don't()d
+// don't()d
+// do()d
+// do()d
