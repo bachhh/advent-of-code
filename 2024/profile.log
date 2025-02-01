@@ -1,0 +1,871 @@
+FUNCTION  lexima#insmode#_map_impl()
+    Defined: ~/.config/nvim/plugged/lexima.vim/autoload/lexima/insmode.vim:144
+Called 1 time
+Total time:   0.000869
+ Self time:   0.000317
+
+count  total (s)   self (s)
+    1   0.000050   0.000021   let fallback = lexima#string#to_inputtable(a:char)
+    1              0.000010   if &buftype ==# 'nofile' && !s:B.is_cmdwin()
+                                return fallback
+    1              0.000002   endif
+    1              0.000007   if exists('b:lexima_disabled') && b:lexima_disabled
+                                return fallback
+    1              0.000001   endif
+    1   0.000489   0.000025   let [rule, at_start_pos] = s:find_rule(a:char)
+    1              0.000005   if rule == {}
+                                return fallback
+    1              0.000001   else
+    1              0.000003     let final_input = ''
+    1              0.000004     if has_key(rule, 'leave')
+                                  if type(rule.leave) ==# type('')
+                                    let final_input .= lexima#insmode#leave_till(rule.leave, lexima#string#to_mappable(a:char))
+                                  elseif type(rule.leave) ==# type(0)
+                                    let final_input .= lexima#insmode#leave(rule.leave, lexima#string#to_mappable(a:char))
+                                  else
+                                    throw 'lexima: Not applicable rule (' . string(rule) . ')'
+                                  endif
+                                  let input_after = ''
+    1              0.000004     elseif has_key(rule, 'delete')
+                                  if type(rule.delete) ==# type('')
+                                    let input = printf('<C-r>=lexima#insmode#delete_till(%s, %s)<CR>', string(rule.delete), string(lexima#string#to_mappable(a:char)))
+                                  elseif type(rule.delete) ==# type(0)
+                                    let input = printf('<C-r>=lexima#insmode#delete(%d, %s)<CR>', rule.delete, string(lexima#string#to_mappable(a:char)))
+                                  else
+                                    throw 'lexima: Not applicable rule (' . string(rule) . ')'
+                                  endif
+                                  let input = input . rule.input
+                                  let input_after = ''
+    1              0.000001     endif
+    1              0.000003     if has_key(rule, 'delete')
+                                  if type(rule.delete) ==# type('')
+                                    let final_input .= lexima#insmode#delete_till(rule.delete, lexima#string#to_mappable(a:char))
+                                  elseif type(rule.delete) ==# type(0)
+                                    let final_input .= lexima#insmode#delete(rule.delete, lexima#string#to_mappable(repeat("\<Del>", rule.delete)))
+                                  else
+                                    throw 'lexima: Not applicable rule (' . string(rule) . ')'
+                                  endif
+    1              0.000001     endif
+    1              0.000005     if get(rule, 'with_submatch', 0)
+                                  let searchlimit = max([0, line('.') - 20])
+                                  let at_end_pos = searchpos(rule.at, 'bcWne', searchlimit)
+                                  let context = join(getline(at_start_pos[0], at_end_pos[0]), "\n")[at_start_pos[1] - 1:at_end_pos[1]]
+                                  let pattern = substitute(rule.at, '\\%#', '', '')
+                                  let base_string = matchstr(context, pattern)
+                                  let input = substitute(base_string, pattern, rule.input, '')
+                                  let input_after = substitute(base_string, pattern, rule.input_after, '')
+    1              0.000001     else
+    1              0.000003       let input = rule.input
+    1              0.000003       let input_after = rule.input_after
+    1              0.000001     endif
+                                " Delay calling input_impl
+                                " so that 'delete' and 'leave' always perform BEFORE 'input'.
+                                " Tips: Unlike input_impl, calling 'delete' and 'leave' offen have no side effects,
+                                " these return just a string such as <Del>, <C-g>U<Right> unless multiline
+    1   0.000061   0.000043     let final_input .= printf('<C-r>=lexima#insmode#_input_impl(%s, %s)<CR>', string(lexima#string#to_mappable(input)), string(lexima#string#to_mappable(input_after)) )
+    1   0.000055   0.000013     return lexima#string#to_inputtable(final_input)
+                              endif
+
+FUNCTION  <SNR>117_has()
+    Defined: ~/.config/nvim/plugged/lexima.vim/autoload/vital/_lexima/Data/List.vim:236
+Called 1 time
+Total time:   0.000008
+ Self time:   0.000008
+
+count  total (s)   self (s)
+    1              0.000007   return index(a:list, a:value) isnot -1
+
+FUNCTION  lexima#insmode#_input_impl()
+    Defined: ~/.config/nvim/plugged/lexima.vim/autoload/lexima/insmode.vim:290
+Called 1 time
+Total time:   0.000219
+ Self time:   0.000089
+
+count  total (s)   self (s)
+                              " 'input': 'AAA', 'input_after': 'BBB<CR>CCC'
+                              " This will be treated as the following
+                              " input: AAABBB<Left><Left><Left>
+                              " input_after: <CR>CCC
+    1   0.000032   0.000015   let a_input = lexima#string#to_inputtable(a:input)
+    1   0.000025   0.000013   let a_input_after = lexima#string#to_inputtable(a:input_after)
+    1              0.000014   let [first_line; after_lines] = split(a_input_after, "\r", 1)
+    1   0.000068   0.000015   let input = s:input_oneline(a_input, first_line)
+    1              0.000005   if len(after_lines) == 0
+                                " 'pass through' means it can be used with <C-u>G
+    1   0.000066   0.000018     call s:pass_through_input_stack.push(a_input_after)
+    1              0.000003     return input
+                              endif
+                            
+                              " Emulate inserting <CR> with setline() (or append()).
+                              " <CR> on AAA|BBB will be
+                              " setline(i, AAA)
+                              " setline(i + 1, BBB)
+                              let [bufnum, lnum, col, off] = getpos('.')
+                              let curline = getline('.')
+                              let precursor = curline[:col - 2]
+                              let postcursor = curline[col - 1:]
+                              call setline('.', precursor)
+                              let after_lines[-1] .= postcursor
+                              call append(lnum, after_lines)
+                            
+                              " handling indent
+                              for i in range(0, len(after_lines) - 1)
+                                let indent_depth = s:calc_indent_depth(lnum + i + 1)
+                                let indent = s:get_indent_chars(indent_depth)
+                                call setline(lnum + i + 1, indent . after_lines[i])  " fix indent
+                              endfor
+                            
+                              call setpos(".", [bufnum, lnum, col, off])
+                            
+                              " {|} => {<CR>|<CR>}
+                              " input: <Del><CR>
+                              " input_after: <CR>}
+                              " pass_through_input ('}' in above) will be moved to lazy_input_stack
+                              " This will be input by lexima#escape()
+                              let pass_through_input = s:pass_through_input_stack.pop_all()
+                              if match(postcursor, '\V\C\^' . pass_through_input) != -1
+                                let input = repeat(lexima#string#to_inputtable("<Del>"), strchars(pass_through_input)) . input
+                                call s:pass_through_input_stack.push(first_line)
+                                call s:lazy_input_stack.push(a_input_after[len(first_line):] . pass_through_input)
+                                call setline('.', precursor . pass_through_input)
+                              endif
+                            
+                              return input
+
+FUNCTION  repeat#wrap()
+    Defined: ~/.config/nvim/plugged/vim-repeat/autoload/repeat.vim:126
+Called 1 time
+Total time:   0.000072
+ Self time:   0.000072
+
+count  total (s)   self (s)
+    1              0.000047     let foldopen = &foldopen =~# 'undo\|all' ? 'zv' : ''
+    1              0.000008     let preserve = g:repeat_tick == b:changedtick ? ":let g:repeat_tick = b:changedtick\r" : ''
+    1              0.000011     return (a:count ? a:count : '') . a:command . preserve . foldopen
+
+FUNCTION  lexima#string#to_upper_specialkey()
+    Defined: ~/.config/nvim/plugged/lexima.vim/autoload/lexima/string.vim:12
+Called 1 time
+Total time:   0.000017
+ Self time:   0.000017
+
+count  total (s)   self (s)
+    1              0.000016   return substitute(a:str, '\v\<\zs[A-Za-z\-]{-}\ze\>', '\=toupper(submatch(0))', 'g')
+
+FUNCTION  lexima#insmode#_default_posthook()
+    Defined: ~/.config/nvim/plugged/lexima.vim/autoload/lexima/insmode.vim:57
+Called 1 time
+Total time:   0.000003
+ Self time:   0.000003
+
+count  total (s)   self (s)
+    1              0.000002   return ''
+
+FUNCTION  lexima#expand()
+    Defined: ~/.config/nvim/plugged/lexima.vim/autoload/lexima.vim:150
+Called 1 time
+Total time:   0.000292
+ Self time:   0.000035
+
+count  total (s)   self (s)
+    1              0.000012   if a:mode ==# 'i'
+    1   0.000276   0.000019     return lexima#insmode#_expand(a:char)
+                              elseif a:mode ==# ':'
+                                return lexima#cmdmode#_expand(a:char)
+                              else
+                                throw 'lexima: Illegal `mode` parameter. (' . a:mode . ')'
+                              endif
+
+FUNCTION  lexima#string#to_mappable()
+    Defined: ~/.config/nvim/plugged/lexima.vim/autoload/lexima/string.vim:8
+Called 2 times
+Total time:   0.000018
+ Self time:   0.000018
+
+count  total (s)   self (s)
+    2              0.000016   return substitute(a:str, '<', '<LT>', 'g')
+
+FUNCTION  <SNR>90_Remove_Matches()
+    Defined: /usr/share/nvim/runtime/plugin/matchparen.vim:202
+Called 48 times
+Total time:   0.000763
+ Self time:   0.000763
+
+count  total (s)   self (s)
+   48              0.000191   if exists('w:paren_hl_on') && w:paren_hl_on
+   16              0.000026     while !empty(w:matchparen_ids)
+    8              0.000030       silent! call remove(w:matchparen_ids, 0)->matchdelete()
+   16              0.000010     endwhile
+    8              0.000011     let w:paren_hl_on = 0
+   48              0.000024   endif
+
+FUNCTION  <SNR>125_input_oneline()
+    Defined: ~/.config/nvim/plugged/lexima.vim/autoload/lexima/insmode.vim:343
+Called 1 time
+Total time:   0.000053
+ Self time:   0.000021
+
+count  total (s)   self (s)
+    1   0.000052   0.000020   return a:input . a:input_after . repeat(lexima#string#to_inputtable("<C-g>U<Left>"), strchars(a:input_after))
+
+FUNCTION  336()
+    Defined: ~/.config/nvim/plugged/lexima.vim/autoload/lexima/charstack.vim:14
+Called 1 time
+Total time:   0.000049
+ Self time:   0.000030
+
+count  total (s)   self (s)
+    1              0.000010   let xs = split(a:str, '.\zs')
+    1              0.000008   call extend(self.v, xs, 0)
+    1   0.000028   0.000010   call self._fire_change_event()
+
+FUNCTION  337()
+    Defined: ~/.config/nvim/plugged/lexima.vim/autoload/lexima/charstack.vim:20
+Called 1 time
+Total time:   0.000046
+ Self time:   0.000032
+
+count  total (s)   self (s)
+    1   0.000011   0.000004   if self.is_empty()
+                                return ''
+    1              0.000001   else
+    1   0.000009   0.000008     let n = (a:n ># self.count()) ? self.count() : a:n
+    1              0.000009     let ret = join(remove(self.v, 0, n-1), '')
+    1   0.000014   0.000008     call self._fire_change_event()
+    1              0.000001     return ret
+                              endif
+
+FUNCTION  <SNR>125_get_syntax_link_chain()
+    Defined: ~/.config/nvim/plugged/lexima.vim/autoload/lexima/insmode.vim:269
+Called 1 time
+Total time:   0.000171
+ Self time:   0.000171
+
+count  total (s)   self (s)
+    1              0.000008   let l = line('.')
+    1              0.000005   let c = col('.')
+    1              0.000011   let synname = synIDattr(synID(l, c, 1), "name")
+    1              0.000004   let result_stack = []
+    1              0.000004   if synname ==# '' && c > 1
+    1              0.000101     let synname = synIDattr(synID(l, c-1, 1), "name")
+    1              0.000001   endif
+    1              0.000003   while 1
+    1              0.000003     if synname ==# ''
+    1              0.000002       break
+                                endif
+                                call add(result_stack, synname)
+                                redir => hiresult
+                                  execute 'silent! highlight ' . synname
+                                redir END
+                                let synname = matchstr(hiresult, 'links to \zs\w\+')
+    1              0.000003   endwhile
+    1              0.000003   return result_stack
+
+FUNCTION  340()
+    Defined: ~/.config/nvim/plugged/lexima.vim/autoload/lexima/charstack.vim:40
+Called 1 time
+Total time:   0.000060
+ Self time:   0.000014
+
+count  total (s)   self (s)
+    1   0.000054   0.000008   return self.pop(len(self.v))
+
+FUNCTION  341()
+    Defined: ~/.config/nvim/plugged/lexima.vim/autoload/lexima/charstack.vim:44
+Called 3 times
+Total time:   0.000012
+ Self time:   0.000012
+
+count  total (s)   self (s)
+    3              0.000011   return empty(self.v)
+
+FUNCTION  342()
+    Defined: ~/.config/nvim/plugged/lexima.vim/autoload/lexima/charstack.vim:48
+Called 1 time
+Total time:   0.000001
+ Self time:   0.000001
+
+count  total (s)   self (s)
+    1              0.000001   return len(self.v)
+
+FUNCTION  345()
+    Defined: ~/.config/nvim/plugged/lexima.vim/autoload/lexima/sortedlist.vim:39
+Called 1 time
+Total time:   0.000027
+ Self time:   0.000027
+
+count  total (s)   self (s)
+    1              0.000026   return deepcopy(self.v)
+
+FUNCTION  lexima#insmode#get_map_rules()
+    Defined: ~/.config/nvim/plugged/lexima.vim/autoload/lexima/insmode.vim:29
+Called 1 time
+Total time:   0.000125
+ Self time:   0.000072
+
+count  total (s)   self (s)
+    1   0.000033   0.000016   let char = lexima#string#to_upper_specialkey(a:char)
+    1              0.000006   if has_key(s:map_dict, char)
+    1   0.000039   0.000031     if &filetype == '' || !s:L.has(keys(s:map_dict[char].rules), &filetype)
+    1   0.000044   0.000017       return s:map_dict[char].rules['_'].as_list()
+                                else
+                                  return s:map_dict[char].rules[&filetype].as_list() + s:map_dict[char].rules['_'].as_list()
+                                endif
+                              else
+                                return []
+                              endif
+
+FUNCTION  lexima#insmode#_expand()
+    Defined: ~/.config/nvim/plugged/lexima.vim/autoload/lexima/insmode.vim:106
+Called 1 time
+Total time:   0.000257
+ Self time:   0.000151
+
+count  total (s)   self (s)
+    1   0.000053   0.000024   let fallback = lexima#string#to_inputtable(a:char)
+    1              0.000013   if !has_key(s:map_dict, a:char) || mode() !=# 'i'
+                                return fallback
+    1              0.000002   endif
+    1              0.000006   let map = s:map_dict[a:char]
+    1   0.000105   0.000045   let prehook = lexima#string#to_inputtable( (type(map.prehook)) ==# type(function("tr")) ? call(map.prehook, [a:char]) : map.prehook )
+    1   0.000051   0.000036   let posthook = lexima#string#to_inputtable( (type(map.posthook)) ==# type(function("tr")) ? call(map.posthook, [a:char]) : map.posthook )
+    1              0.000018   return printf("%s\<C-r>=lexima#insmode#_map_impl(%s)\<CR>%s", prehook, string(a:char), posthook )
+
+FUNCTION  <SNR>41_setup_insmode()
+    Defined: ~/.config/nvim/plugged/lexima.vim/plugin/lexima.vim:15
+Called 1 time
+Total time:   0.000049
+ Self time:   0.000049
+
+count  total (s)   self (s)
+    1              0.000003   if get(b:, 'lexima_disabled', 0)
+                                return
+    1              0.000000   endif
+                            
+    1              0.000011   if -1 == match(&backspace, 'start')
+                                echohl WarningMsg
+                                echom "lexima: 'backspace' option does not contain 'start'. (Recommendation: set backspace=indent,eol,start)"
+                                echohl None
+    1              0.000000   endif
+                            
+                              " Setup workaround to be able to map `Esc` in insert mode, in combination with
+                              " the "nowait" mapping. This is required in terminal mode, where escape codes
+                              " are being used for cursor keys, alt/meta mappings etc.
+    1              0.000005   if g:lexima_map_escape == '<Esc>' && !has('gui_running')
+    1              0.000008     inoremap <Esc><Esc> <Esc>
+    1              0.000000   endif
+    1              0.000001   if g:lexima_map_escape !=# ''
+    1              0.000002     if v:version > 703 || (v:version == 703 && has("patch1261"))
+    1              0.000009       exe 'inoremap <silent> <buffer> <nowait> '.g:lexima_map_escape.' <C-r>=lexima#insmode#escape()<CR><Esc>'
+                                else
+                                  exe 'inoremap <silent> <buffer> '.g:lexima_map_escape.' <C-r>=lexima#insmode#escape()<CR><Esc>'
+    1              0.000000     endif
+    1              0.000000   endif
+
+FUNCTION  281()
+    Defined: /usr/share/nvim/runtime/autoload/provider/clipboard.vim:22
+Called 2 times
+Total time:   0.000040
+ Self time:   0.000040
+
+count  total (s)   self (s)
+                              " At this point this nvim instance might already have launched
+                              " a new provider instance. Don't drop ownership in this case.
+    2              0.000013   if self.owner == a:jobid
+    2              0.000006     let self.owner = 0
+    2              0.000002   endif
+                              " Don't print if exit code is >= 128 ( exit is 128+SIGNUM if by signal (e.g. 143 on SIGTERM))
+    2              0.000002   if a:data > 0 && a:data < 128
+                                echohl WarningMsg
+                                echomsg 'clipboard: error invoking '.get(self.argv, 0, '?').': '.join(self.stderr)
+                                echohl None
+    2              0.000001   endif
+
+FUNCTION  283()
+    Defined: /usr/share/nvim/runtime/autoload/provider/clipboard.vim:184
+Called 2 times
+Total time:   0.008963
+ Self time:   0.008963
+
+count  total (s)   self (s)
+    2              0.000009   if a:reg == '"'
+                                call s:clipboard.set(a:lines,a:regtype,'+')
+                                if s:copy['*'] != s:copy['+']
+                                  call s:clipboard.set(a:lines,a:regtype,'*')
+                                end
+                                return 0
+    2              0.000001   end
+                            
+    2              0.000012   if type(s:copy[a:reg]) == v:t_func
+                                call s:copy[a:reg](a:lines, a:regtype)
+                                return 0
+    2              0.000001   end
+                            
+    2              0.000004   if s:cache_enabled == 0
+                                call s:try_cmd(s:copy[a:reg], a:lines)
+                                "Cache it anyway we can compare it later to get regtype of the yank
+                                let s:selections[a:reg] = copy(s:selection)
+                                let s:selections[a:reg].data = [a:lines, a:regtype]
+                                return 0
+    2              0.000001   end
+                            
+    2              0.000007   if s:selections[a:reg].owner > 0
+                                let prev_job = s:selections[a:reg].owner
+    2              0.000001   end
+    2              0.000015   let s:selections[a:reg] = copy(s:selection)
+    2              0.000006   let selection = s:selections[a:reg]
+    2              0.000010   let selection.data = [a:lines, a:regtype]
+    2              0.000006   let selection.argv = s:copy[a:reg]
+    2              0.000006   let selection.detach = s:cache_enabled
+    2              0.000004   let selection.cwd = "/"
+    2              0.008626   let jobid = jobstart(selection.argv, selection)
+    2              0.000017   if jobid > 0
+    2              0.000045     call jobsend(jobid, a:lines)
+    2              0.000010     call jobclose(jobid, 'stdin')
+                                " xclip does not close stdout when receiving input via stdin
+    2              0.000010     if selection.argv[0] ==# 'xclip'
+                                  call jobclose(jobid, 'stdout')
+    2              0.000003     endif
+    2              0.000011     let selection.owner = jobid
+    2              0.000003     let ret = 1
+                              else
+                                echohl WarningMsg
+                                echomsg 'clipboard: failed to execute: '.(s:copy[a:reg])
+                                echohl None
+                                let ret = 1
+    2              0.000001   endif
+                            
+                              " The previous provider instance should exit when the new one takes
+                              " ownership, but kill it to be sure we don't fill up the job table.
+    2              0.000013   if exists('prev_job')
+                                call timer_start(1000, {... -> jobwait([prev_job], 0)[0] == -1 && jobstop(prev_job)})
+    2              0.000001   endif
+                            
+    2              0.000008   return ret
+
+FUNCTION  lexima#insmode#_default_prehook()
+    Defined: ~/.config/nvim/plugged/lexima.vim/autoload/lexima/insmode.vim:43
+Called 1 time
+Total time:   0.000024
+ Self time:   0.000024
+
+count  total (s)   self (s)
+                              " Add <C-]> prehook to expand abbreviation.
+    1              0.000008   if (v:version > 703 || (v:version == 703 && has('patch489'))) " old vim does not support <C-]> && lexima#string#to_inputtable(a:char) !~ '.*\k$'
+    1              0.000006     if pumvisible() && a:char == '<CR>'
+                                  return '<C-y><C-]>'
+    1              0.000001     else
+    1              0.000002       return '<C-]>'
+                                endif
+                              else
+                                return ''
+                              endif
+
+FUNCTION  lexima#string#to_inputtable()
+    Defined: ~/.config/nvim/plugged/lexima.vim/autoload/lexima/string.vim:4
+Called 8 times
+Total time:   0.000211
+ Self time:   0.000211
+
+count  total (s)   self (s)
+    8              0.000202   return substitute(a:str, '<\([A-Za-z\-\]\[]\+\)>', '\=eval(''"\<'' . submatch(1) . ''>"'')', 'g')
+
+FUNCTION  <SNR>125_find_rule()
+    Defined: ~/.config/nvim/plugged/lexima.vim/autoload/lexima/insmode.vim:210
+Called 1 time
+Total time:   0.000463
+ Self time:   0.000167
+
+count  total (s)   self (s)
+    1   0.000191   0.000020   let syntax_chain = s:get_syntax_link_chain()
+    1              0.000010   let searchlimit = max([0, line('.') - 20])
+    1   0.000146   0.000021   let rules = lexima#insmode#get_map_rules(a:char)
+    2              0.000007   for rule in rules
+    2              0.000036     let at_pos = searchpos(rule.at, 'bcWn', searchlimit)
+    2              0.000019     let excepted = has_key(rule, 'except') ?              searchpos(rule.except, 'bcWn', searchlimit) !=# [0, 0] : 0
+    2              0.000011     if at_pos !=# [0, 0] && !excepted
+    1              0.000004       if empty(rule.syntax)
+    1              0.000004         return [rule, at_pos]
+                                  else
+                                    for syn in syntax_chain
+                                      if index(rule.syntax, syn) >=# 0
+                                        return [rule, at_pos]
+                                      endif
+                                    endfor
+                                  endif
+    1              0.000001     endif
+    1              0.000002   endfor
+                              return [{}, [0, 0]]
+
+FUNCTION  <SNR>90_Highlight_Matching_Pair()
+    Defined: /usr/share/nvim/runtime/plugin/matchparen.vim:44
+Called 41 times
+Total time:   0.012933
+ Self time:   0.010720
+
+count  total (s)   self (s)
+   41              0.000297   if !exists("w:matchparen_ids")
+                                let w:matchparen_ids = []
+   41              0.000039   endif
+                              " Remove any previous match.
+   41   0.000955   0.000318   call s:Remove_Matches()
+                            
+                              " Avoid that we remove the popup menu.
+                              " Return when there are no colors (looks like the cursor jumps).
+   41              0.000201   if pumvisible() || (&t_Co < 8 && !has("gui_running"))
+                                return
+   41              0.000017   endif
+                            
+                              " Get the character under the cursor and check if it's in 'matchpairs'.
+   41              0.000133   let c_lnum = line('.')
+   41              0.000101   let c_col = col('.')
+   41              0.000047   let before = 0
+                            
+   41              0.000115   let text = getline(c_lnum)
+   41              0.000297   let c_before = text->strpart(0, c_col - 1)->slice(-1)
+   41              0.000140   let c = text->strpart(c_col - 1)->slice(0, 1)
+   41              0.000711   let plist = split(&matchpairs, '.\zs[:,]')
+   41              0.000140   let i = index(plist, c)
+   41              0.000046   if i < 0
+                                " not found, in Insert mode try character before the cursor
+   28              0.000098     if c_col > 1 && (mode() == 'i' || mode() == 'R')
+    6              0.000011       let before = strlen(c_before)
+    6              0.000005       let c = c_before
+    6              0.000009       let i = index(plist, c)
+   28              0.000017     endif
+   28              0.000028     if i < 0
+                                  " not found, nothing to do
+   28              0.000028       return
+                                endif
+   13              0.000005   endif
+                            
+                              " Figure out the arguments for searchpairpos().
+   13              0.000015   if i % 2 == 0
+                                let s_flags = 'nW'
+                                let c2 = plist[i + 1]
+   13              0.000007   else
+   13              0.000017     let s_flags = 'nbW'
+   13              0.000017     let c2 = c
+   13              0.000029     let c = plist[i - 1]
+   13              0.000007   endif
+   13              0.000028   if c == '['
+                                let c = '\['
+                                let c2 = '\]'
+   13              0.000005   endif
+                            
+                              " Find the match.  When it was just before the cursor move it there for a
+                              " moment.
+   13              0.000014   if before > 0
+                                let has_getcurpos = exists("*getcurpos")
+                                if has_getcurpos
+                                  " getcurpos() is more efficient but doesn't exist before 7.4.313.
+                                  let save_cursor = getcurpos()
+                                else
+                                  let save_cursor = winsaveview()
+                                endif
+                                call cursor(c_lnum, c_col - before)
+   13              0.000006   endif
+                            
+   13              0.000067   if !has("syntax") || !exists("g:syntax_on")
+                                let s_skip = "0"
+   13              0.000005   else
+                                " Build an expression that detects whether the current cursor position is
+                                " in certain syntax types (string, comment, etc.), for use as
+                                " searchpairpos()'s skip argument.
+                                " We match "escape" for special items, such as lispEscapeSpecial, and
+                                " match "symbol" for lispBarSymbol.
+   13              0.000049     let s_skip = 'synstack(".", col("."))' . '->indexof({_, id -> synIDattr(id, "name") =~? ' . '"string\\|character\\|singlequote\\|escape\\|symbol\\|comment"}) >= 0'
+                                " If executing the expression determines that the cursor is currently in
+                                " one of the syntax types, then we want searchpairpos() to find the pair
+                                " within those syntax types (i.e., not skip).  Otherwise, the cursor is
+                                " outside of the syntax types and s_skip should keep its value so we skip
+                                " any matching pair inside the syntax types.
+                                " Catch if this throws E363: pattern uses more memory than 'maxmempattern'.
+   13              0.000012     try
+   13   0.001070   0.000830       execute 'if ' . s_skip . ' | let s_skip = "0" | endif'
+                                catch /^Vim\%((\a\+)\)\=:E363/
+                                  " We won't find anything, so skip searching, should keep Vim responsive.
+                                  return
+   13              0.000010     endtry
+   13              0.000006   endif
+                            
+                              " Limit the search to lines visible in the window.
+   13              0.000034   let stoplinebottom = line('w$')
+   13              0.000027   let stoplinetop = line('w0')
+   13              0.000015   if i % 2 == 0
+                                let stopline = stoplinebottom
+   13              0.000006   else
+   13              0.000019     let stopline = stoplinetop
+   13              0.000005   endif
+                            
+                              " Limit the search time to 300 msec to avoid a hang on very long lines.
+                              " This fails when a timeout is not supported.
+   13              0.000033   if mode() == 'i' || mode() == 'R'
+    8              0.000043     let timeout = exists("b:matchparen_insert_timeout") ? b:matchparen_insert_timeout : g:matchparen_insert_timeout
+    5              0.000003   else
+    5              0.000041     let timeout = exists("b:matchparen_timeout") ? b:matchparen_timeout : g:matchparen_timeout
+   13              0.000006   endif
+   13              0.000008   try
+   13   0.005994   0.004658     let [m_lnum, m_col] = searchpairpos(c, '', c2, s_flags, s_skip, stopline, timeout)
+                              catch /E118/
+                                " Can't use the timeout, restrict the stopline a bit more to avoid taking
+                                " a long time on closed folds and long lines.
+                                " The "viewable" variables give a range in which we can scroll while
+                                " keeping the cursor at the same position.
+                                " adjustedScrolloff accounts for very large numbers of scrolloff.
+                                let adjustedScrolloff = min([&scrolloff, (line('w$') - line('w0')) / 2])
+                                let bottom_viewable = min([line('$'), c_lnum + &lines - adjustedScrolloff - 2])
+                                let top_viewable = max([1, c_lnum-&lines+adjustedScrolloff + 2])
+                                " one of these stoplines will be adjusted below, but the current values are
+                                " minimal boundaries within the current window
+                                if i % 2 == 0
+                                  if has("byte_offset") && has("syntax_items") && &smc > 0
+                            	let stopbyte = min([line2byte("$"), line2byte(".") + col(".") + &smc * 2])
+                            	let stopline = min([bottom_viewable, byte2line(stopbyte)])
+                                  else
+                            	let stopline = min([bottom_viewable, c_lnum + 100])
+                                  endif
+                                  let stoplinebottom = stopline
+                                else
+                                  if has("byte_offset") && has("syntax_items") && &smc > 0
+                            	let stopbyte = max([1, line2byte(".") + col(".") - &smc * 2])
+                            	let stopline = max([top_viewable, byte2line(stopbyte)])
+                                  else
+                            	let stopline = max([top_viewable, c_lnum - 100])
+                                  endif
+                                  let stoplinetop = stopline
+                                endif
+                                let [m_lnum, m_col] = searchpairpos(c, '', c2, s_flags, s_skip, stopline)
+   13              0.000008   endtry
+                            
+   13              0.000014   if before > 0
+                                if has_getcurpos
+                                  call setpos('.', save_cursor)
+                                else
+                                  call winrestview(save_cursor)
+                                endif
+   13              0.000005   endif
+                            
+                              " If a match is found setup match highlighting.
+   13              0.000030   if m_lnum > 0 && m_lnum >= stoplinetop && m_lnum <= stoplinebottom 
+    8              0.000006     if s:has_matchaddpos
+    8              0.000045       call add(w:matchparen_ids, matchaddpos('MatchParen', [[c_lnum, c_col - before], [m_lnum, m_col]], 10))
+                                else
+                                  exe '3match MatchParen /\(\%' . c_lnum . 'l\%' . (c_col - before) . 'c\)\|\(\%' . m_lnum . 'l\%' . m_col . 'c\)/'
+                                  call add(w:matchparen_ids, 3)
+    8              0.000003     endif
+    8              0.000008     let w:paren_hl_on = 1
+   13              0.000006   endif
+
+FUNCTION  lexima#insmode#clear_stack()
+    Defined: ~/.config/nvim/plugged/lexima.vim/autoload/lexima/insmode.vim:473
+Called 1 time
+Total time:   0.000087
+ Self time:   0.000022
+
+count  total (s)   self (s)
+    1   0.000013   0.000010   if !s:pass_through_input_stack.is_empty()
+    1   0.000066   0.000006     call s:pass_through_input_stack.pop_all()
+    1              0.000000   endif
+    1   0.000005   0.000003   if !s:lazy_input_stack.is_empty()
+                                call s:lazy_input_stack.pop_all()
+    1              0.000000   endif
+
+FUNCTION  GoIndent()
+    Defined: /usr/share/nvim/runtime/indent/go.vim:29
+Called 1 time
+Total time:   0.000083
+ Self time:   0.000083
+
+count  total (s)   self (s)
+    1              0.000016   let l:prevlnum = prevnonblank(a:lnum-1)
+    1              0.000002   if l:prevlnum == 0
+                                " top of file
+                                return 0
+    1              0.000001   endif
+                            
+                              " grab the previous and current line, stripping comments.
+    1              0.000010   let l:prevl = substitute(getline(l:prevlnum), '//.*$', '', '')
+    1              0.000007   let l:thisl = substitute(getline(a:lnum), '//.*$', '', '')
+    1              0.000003   let l:previ = indent(l:prevlnum)
+                            
+    1              0.000001   let l:ind = l:previ
+                            
+    1              0.000008   if l:prevl =~ '[({]\s*$'
+                                " previous line opened a block
+                                let l:ind += shiftwidth()
+    1              0.000000   endif
+    1              0.000009   if l:prevl =~# '^\s*\(case .*\|default\):$'
+                                " previous line is part of a switch statement
+                                let l:ind += shiftwidth()
+    1              0.000000   endif
+                              " TODO: handle if the previous line is a label.
+                            
+    1              0.000004   if l:thisl =~ '^\s*[)}]'
+                                " this line closed a block
+                                let l:ind -= shiftwidth()
+    1              0.000000   endif
+                            
+                              " Colons are tricky.
+                              " We want to outdent if it's part of a switch ("case foo:" or "default:").
+                              " We ignore trying to deal with jump labels because (a) they're rare, and
+                              " (b) they're hard to disambiguate from a composite literal key.
+    1              0.000004   if l:thisl =~# '^\s*\(case .*\|default\):$'
+                                let l:ind -= shiftwidth()
+    1              0.000000   endif
+                            
+    1              0.000001   return l:ind
+
+FUNCTION  highlightedyank#debounce()
+    Defined: ~/.config/nvim/plugged/vim-highlightedyank/autoload/highlightedyank.vim:17
+Called 2 times
+Total time:   0.000090
+ Self time:   0.000090
+
+count  total (s)   self (s)
+    2              0.000007   if s:state is s:OFF
+                                return
+    2              0.000001   endif
+                            
+    2              0.000009   if get(v:event, 'visual', v:false)
+                                let highlight_in_visual = (   get(b:, 'highlightedyank_highlight_in_visual', 1) &&   get(g:, 'highlightedyank_highlight_in_visual', 1) )
+                                if !highlight_in_visual
+                                  return
+                                endif
+    2              0.000001   endif
+                            
+    2              0.000006   let operator = v:event.operator
+    2              0.000004   let regtype = v:event.regtype
+    2              0.000021   let regcontents = v:event.regcontents
+    2              0.000006   if operator isnot# 'y' || regtype is# ''
+    2              0.000002     return
+                              endif
+                            
+                              if s:timer != -1
+                                call timer_stop(s:timer)
+                              endif
+                              let s:info = copy(v:event)
+                              let s:info.changedtick = b:changedtick
+                              " Old vim does not have visual key in v:event
+                              let s:info.visual = get(v:event, 'visual', v:false)
+                            
+                              " NOTE: The timer callback is not called while vim is busy, thus the
+                              "       highlight procedure starts after the control is returned to the user.
+                              "       This makes complex-repeat faster because the highlight doesn't
+                              "       performed during a macro execution.
+                              let s:timer = timer_start(1, {-> s:highlight()})
+
+FUNCTION  343()
+    Defined: ~/.config/nvim/plugged/lexima.vim/autoload/lexima/charstack.vim:52
+Called 2 times
+Total time:   0.000024
+ Self time:   0.000024
+
+count  total (s)   self (s)
+    2              0.000013   if has_key(self, 'on_change') && type(self.on_change) ==# type(function('function'))
+                                call self.on_change()
+    2              0.000002   endif
+
+FUNCTION  provider#clipboard#Call()
+    Defined: /usr/share/nvim/runtime/autoload/provider/clipboard.vim:243
+Called 3 times
+Total time:   0.019110
+ Self time:   0.000357
+
+count  total (s)   self (s)
+    3              0.000093   if get(s:, 'here', v:false)  " Clipboard provider must not recurse. #7184
+                                return 0
+    3              0.000006   endif
+    3              0.000019   let s:here = v:true
+    3              0.000005   try
+    3   0.018911   0.000158     return call(s:clipboard[a:method],a:args,s:clipboard)
+    3              0.000011   finally
+    3              0.000016     let s:here = v:false
+    3              0.000007   endtry
+
+FUNCTION  282()
+    Defined: /usr/share/nvim/runtime/autoload/provider/clipboard.vim:166
+Called 1 time
+Total time:   0.009791
+ Self time:   0.000243
+
+count  total (s)   self (s)
+    1              0.000013   if type(s:paste[a:reg]) == v:t_func
+                                return s:paste[a:reg]()
+    1              0.000011   elseif s:selections[a:reg].owner > 0
+                                return s:selections[a:reg].data
+    1              0.000001   end
+                            
+    1   0.009609   0.000062   let clipboard_data = s:try_cmd(s:paste[a:reg])
+    1              0.000127   if match(&clipboard, '\v(unnamed|unnamedplus)') >= 0 && type(clipboard_data) == v:t_list && get(s:selections[a:reg].data, 0, []) ==# clipboard_data
+                                " When system clipboard return is same as our cache return the cache
+                                " as it contains regtype information
+    1              0.000007     return s:selections[a:reg].data
+                              end
+                              return clipboard_data
+
+FUNCTION  <SNR>67_try_cmd()
+    Defined: /usr/share/nvim/runtime/autoload/provider/clipboard.vim:38
+Called 1 time
+Total time:   0.009547
+ Self time:   0.000199
+
+count  total (s)   self (s)
+    1   0.009484   0.000136   let out = systemlist(a:cmd, (a:0 ? a:1 : ['']), 1)
+    1              0.000012   if v:shell_error
+                                if !exists('s:did_error_try_cmd')
+                                  echohl WarningMsg
+                                  echomsg "clipboard: error: ".(len(out) ? out[0] : v:shell_error)
+                                  echohl None
+                                  let s:did_error_try_cmd = 1
+                                endif
+                                return 0
+    1              0.000001   endif
+    1              0.000005   return out
+
+FUNCTIONS SORTED ON TOTAL TIME
+count  total (s)   self (s)  function
+    3   0.019110   0.000357  provider#clipboard#Call()
+   41   0.012933   0.010720  <SNR>90_Highlight_Matching_Pair()
+    1   0.009791   0.000243  282()
+    1   0.009547   0.000199  <SNR>67_try_cmd()
+    2   0.008963             283()
+    1   0.000869   0.000317  lexima#insmode#_map_impl()
+   48   0.000763             <SNR>90_Remove_Matches()
+    1   0.000463   0.000167  <SNR>125_find_rule()
+    1   0.000292   0.000035  lexima#expand()
+    1   0.000257   0.000151  lexima#insmode#_expand()
+    1   0.000219   0.000089  lexima#insmode#_input_impl()
+    8   0.000211             lexima#string#to_inputtable()
+    1   0.000171             <SNR>125_get_syntax_link_chain()
+    1   0.000125   0.000072  lexima#insmode#get_map_rules()
+    2   0.000090             highlightedyank#debounce()
+    1   0.000087   0.000022  lexima#insmode#clear_stack()
+    1   0.000083             GoIndent()
+    1   0.000072             repeat#wrap()
+    1   0.000060   0.000014  340()
+    1   0.000053   0.000021  <SNR>125_input_oneline()
+
+FUNCTIONS SORTED ON SELF TIME
+count  total (s)   self (s)  function
+   41   0.012933   0.010720  <SNR>90_Highlight_Matching_Pair()
+    2              0.008963  283()
+   48              0.000763  <SNR>90_Remove_Matches()
+    3   0.019110   0.000357  provider#clipboard#Call()
+    1   0.000869   0.000317  lexima#insmode#_map_impl()
+    1   0.009791   0.000243  282()
+    8              0.000211  lexima#string#to_inputtable()
+    1   0.009547   0.000199  <SNR>67_try_cmd()
+    1              0.000171  <SNR>125_get_syntax_link_chain()
+    1   0.000463   0.000167  <SNR>125_find_rule()
+    1   0.000257   0.000151  lexima#insmode#_expand()
+    2              0.000090  highlightedyank#debounce()
+    1   0.000219   0.000089  lexima#insmode#_input_impl()
+    1              0.000083  GoIndent()
+    1   0.000125   0.000072  lexima#insmode#get_map_rules()
+    1              0.000072  repeat#wrap()
+    1              0.000049  <SNR>41_setup_insmode()
+    2              0.000040  281()
+    1   0.000292   0.000035  lexima#expand()
+    1   0.000046   0.000032  337()
+
