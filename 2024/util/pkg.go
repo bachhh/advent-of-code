@@ -40,3 +40,18 @@ func IntToChar(num int) (byte, error) {
 	}
 	return byte('0' + num), nil
 }
+
+// SwapSlice swap all element of slice[a:b] with slice[c:d]
+func SwapSlice[T ~[]E, E any](s T, a, b, c, d int) error {
+	if a >= b || c >= d || b > len(s) || d > len(s) {
+		return fmt.Errorf("invalid indices")
+	}
+	if c-d > b-a {
+		return fmt.Errorf("2 sub-slice have different sizes")
+	}
+	tmp := make(T, b-a)
+	copy(tmp, s[a:b])
+	copy(s[a:b], s[c:d])
+	copy(s[c:d], tmp)
+	return nil
+}

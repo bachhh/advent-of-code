@@ -68,27 +68,39 @@ func main() {
 	}
 
 	fmt.Println(disk)
-	var fr, to int
-	fr = len(disk)
+	fileX, fileY := len(disk), 0
+	lock := map[string]bool{}
 	for {
-		// fr, to = nextLeftFile(disk, fr)
-		// if fr == -1 {
-		// 	break
-		// }
-
-		fr, to = rightMostFreeSpace(disk, -1)
-		if fr == -1 {
+		fileX, fileY = nextLeftFile(disk, fileX)
+		if fileX == -1 {
 			break
 		}
+		id := disk[fileX]
 
-		for i := range disk[fr : to+1] {
-			disk[i] = "+"
+		if lock[id] {
+			continue
 		}
+		lock[id] = true
 
-		fmt.Println(disk[fr : to+1])
-		break
+		size := fileY - fileX + 1
+		freeX, freeY := rightMostFreeSpace(disk, size)
+		if freeX == -1 {
+			fmt.Printf("no size %d found\n", size)
+			continue
+		} else if fileX < freeY {
+			fmt.Printf("size %d found but not on left of file\n", size)
+			continue
+		}
+		fmt.Printf("free space for file %s size %d found\n", disk[fileX], size)
+
+		fmt.Println(freeX, freeY, fileX, fileY)
+		err = util.SwapSlice(disk, freeX, freeY+1, fileX, fileY+1)
+		if err != nil {
+			panic(err)
+		}
+		fmt.Println(disk)
 	}
-	fmt.Println(checkSum(disk))
+	fmt.Println("checksum", checkSum(disk))
 }
 
 // look for the next file to the left of pos
@@ -119,7 +131,7 @@ func rightMostFreeSpace(disk []string, size int) (from, to int) {
 		if from == len(disk) {
 			return -1, -1
 		}
-		from--
+		// from--
 		to = from
 		for to < len(disk) && disk[to] == "." {
 			to++
@@ -128,7 +140,7 @@ func rightMostFreeSpace(disk []string, size int) (from, to int) {
 
 		if size == -1 {
 			return from, to
-		} else if to-from+1 == size {
+		} else if to-from+1 >= size {
 			return from, to
 		}
 	}
@@ -143,7 +155,7 @@ func checkSum(disk []string) int {
 	score := 0
 	for i := range disk {
 		if disk[i] == "." {
-			break
+			continue
 		}
 		num, err := strconv.Atoi(disk[i])
 		if err != nil {
@@ -152,35 +164,4 @@ func checkSum(disk []string) int {
 		score += num * i
 	}
 	return score
-}
-
-func diskMapToDisk(diskmap []byte) []string {
-	isSpace := false
-	disk := []string{}
-	id := 0
-
-	for i := range diskmap {
-
-		num, err := util.CharToInt(diskmap[i])
-		if err != nil {
-			panic(err)
-		}
-
-		if isSpace {
-			for range num {
-				disk = append(disk, ".")
-			}
-		} else {
-			for range num {
-				char := strconv.Itoa((id))
-				disk = append(disk, char)
-			}
-			id++
-		}
-
-		isSpace = !isSpace
-		// fmt.Println(num, isSpace, string(cp[i]))
-		// fmt.Println(string(disk))
-	}
-	return disk
 }
