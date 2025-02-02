@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"math"
 	"os"
 	"runtime/pprof"
 	"strconv"
@@ -57,7 +58,15 @@ func eval(accum int64, target int64, numbers []int64) bool {
 	if len(numbers) == 0 {
 		return accum == target
 	}
-	return eval(accum*numbers[0], target, numbers[1:]) || eval(accum+numbers[0], target, numbers[1:])
+	return eval(accum*numbers[0], target, numbers[1:]) ||
+		eval(accum+numbers[0], target, numbers[1:]) ||
+		eval(combine(accum, numbers[0]), target, numbers[1:])
+}
+
+func combine(a, b int64) int64 {
+	multiplier := int64(math.Pow10(int(math.Log10(float64(b))) + 1))
+
+	return a*multiplier + b
 }
 
 func parseLine(input string) ([]int64, error) {
