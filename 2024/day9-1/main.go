@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"runtime/pprof"
+	"strconv"
 
 	"aoc2024/util"
 )
@@ -35,24 +36,60 @@ func main() {
 
 	scanner := bufio.NewScanner(file)
 
+	scanner.Scan()
 	cp := util.CloneSlice(scanner.Bytes())
+
 	isSpace := false
-	disk := []byte{}
+	disk := []string{}
+	id := 0
+
 	for i := range cp {
-		isSpace = !isSpace
 
 		num, err := util.CharToInt(cp[i])
 		if err != nil {
 			panic(err)
 		}
 
-		for i := range num {
-			if isSpace {
-				disk = append(disk, '.')
-			} else {
-				disk = append(disk, cp[i])
+		if isSpace {
+			for range num {
+				disk = append(disk, ".")
 			}
+		} else {
+			for range num {
+				char := strconv.Itoa((id))
+				disk = append(disk, char)
+			}
+			id++
 		}
+
+		isSpace = !isSpace
+		// fmt.Println(num, isSpace, string(cp[i]))
+		// fmt.Println(string(disk))
 	}
-	fmt.Println(string(disk))
+	// fmt.Println(string(disk))
+	front, end := 0, len(disk)-1
+	for ; disk[front] != "."; front++ {
+	}
+	for ; disk[end] == "."; end-- {
+	}
+	for front < end {
+		disk[front], disk[end] = disk[end], disk[front]
+		for front++; disk[front] != "."; front++ {
+		}
+		for end--; disk[end] == "."; end-- {
+		}
+		// fmt.Println(string(disk))
+	}
+	score := 0
+	for i := range disk {
+		if disk[i] == "." {
+			break
+		}
+		num, err := strconv.Atoi(disk[i])
+		if err != nil {
+			panic(err)
+		}
+		score += num * i
+	}
+	fmt.Println(score)
 }

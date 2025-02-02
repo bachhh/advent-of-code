@@ -30,3 +30,13 @@ func IsAlphaNumeric(b byte) bool {
 func CharToInt(char byte) (int, error) {
 	return strconv.Atoi(string(char))
 }
+
+func IntToChar(num int) (byte, error) {
+	if num == 0 {
+		return byte('0'), nil
+	}
+	if num > 9 {
+		panic("can only convert single digit")
+	}
+	return byte('0' + num), nil
+}
