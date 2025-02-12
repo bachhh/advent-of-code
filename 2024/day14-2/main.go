@@ -9,11 +9,17 @@ import (
 	"regexp"
 	"runtime/pprof"
 	"strconv"
+	"time"
 
 	"aoc2024/util"
 )
 
 type Pair = util.Pair
+
+const (
+	maxX = 101
+	maxY = 103
+)
 
 func main() {
 	cpuprofile := flag.String("cpuprofile", "", "write cpu profile to file")
@@ -38,62 +44,28 @@ func main() {
 	defer file.Close()
 	scanner := bufio.NewScanner(file)
 
-	quardrantCount := make([]int, 4)
-	maxX := 101
-	maxY := 103
-
-	quadrants := calcQuadrants(maxX, maxY)
-	matrix := make([][]int, maxY)
-	for i := range matrix {
-		matrix[i] = make([]int, maxX)
-		for j := range matrix[i] {
-			matrix[i][j] = 0
-		}
-	}
+	allRobot := []Robot{}
 
 	for scanner.Scan() {
 		x, y, dx, dy, err := ParseLine(scanner.Text())
 		if err != nil {
 			panic(err)
 		}
-		// fmt.Println(x, y, dx, dy)
-		finalPosX := (x + 100*dx)
-		finalPosY := (y + 100*dy)
+		allRobot = append(allRobot, Robot{x, y, dx, dy})
 
-		// wrap around if position is negative
-		finalPosX += (util.Abs(finalPosX/maxX) + 1) * maxX
-		finalPosY += (util.Abs(finalPosY/maxY) + 1) * maxY
-
-		finalPosX = finalPosX % maxX
-		finalPosY = finalPosY % maxY
-
-		matrix[finalPosY][finalPosX]++
-		for i, quad := range quadrants {
-			if (quad[0] <= finalPosY && finalPosY < quad[1]) && (quad[2] <= finalPosX && finalPosX < quad[3]) {
-				quardrantCount[i]++
-			}
-		}
-
-		matrix[finalPosY][finalPosX]++
 	}
+	// reader := bufio.NewReader(os.Stdin)
+	limit := 8000
 
-	util.PrintMatrixTransform(matrix, func(i int) string {
-		var str string
-		if i == 0 {
-			str = "."
-		} else {
-			str = strconv.Itoa(i)
-		}
-		return fmt.Sprintf("%3s", str)
-	})
-
-	total := 1
-	for _, count := range quardrantCount {
-		fmt.Println("count", count)
-		total *= count
+	for i := 5000; i < limit; i++ {
+		// _, err := reader.ReadString('\n') // Waits for user input
+		// if err != nil {
+		// 	panic(err)
+		// }
+		DrawMap(allRobot, i)
+		time.Sleep(2 * time.Millisecond)
+		fmt.Println(i)
 	}
-	fmt.Println("factor", total)
-	// q2 := []int{52, 101, 51, 101}
 }
 
 // ParseLine extracts position and velocity from a given formatted string.
@@ -148,4 +120,42 @@ func calcQuadrants(maxX, maxY int) [][]int {
 			maxX / 2,
 		},
 	}
+}
+
+type Robot struct {
+	X, Y   int
+	Dx, Dy int
+}
+
+func (r *Robot) CalcPosition(sec int) (int, int) {
+	x, y, dx, dy := r.X, r.Y, r.Dx, r.Dy
+
+	// fmt.Println(x, y, dx, dy)
+	finalPosX := (x + sec*dx)
+	finalPosY := (y + sec*dy)
+
+	// wrap around if position is negative
+	finalPosX += (util.Abs(finalPosX/maxX) + 1) * maxX
+	finalPosY += (util.Abs(finalPosY/maxY) + 1) * maxY
+
+	return finalPosX % maxX, finalPosY % maxY
+}
+
+func DrawMap(allRobot []Robot, sec int) {
+	matrix := util.NewMatrix[int](maxY, maxX)
+
+	for _, robot := range allRobot {
+		x, y := robot.CalcPosition(sec)
+		matrix[y][x]++
+	}
+
+	util.PrintMatrixTransform(true, matrix, func(i int) string {
+		var str string
+		if i == 0 {
+			str = "."
+		} else {
+			str = "X"
+		}
+		return fmt.Sprintf("%s", str)
+	})
 }

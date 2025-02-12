@@ -18,6 +18,20 @@ func PrintMatrix(matrix [][]byte) {
 	fmt.Println()
 }
 
+// same as print matrix, but take any function and and transform to character
+func PrintMatrixTransform[T any](isRefresh bool, matrix [][]T, transform func(c T) string) {
+	if isRefresh {
+		fmt.Print("\033[H\033[2J")
+	}
+	for i := range matrix {
+		for j := range matrix[i] {
+			fmt.Printf("%s", transform(matrix[i][j]))
+		}
+		fmt.Println()
+	}
+	fmt.Println()
+}
+
 func PrintMatrixRefresh(matrix [][]byte) {
 	fmt.Print("\033[H\033[2J")
 	PrintMatrix(matrix)
@@ -177,4 +191,12 @@ func Abs[T Number](val T) T {
 		return -val
 	}
 	return val
+}
+
+func NewMatrix[T any](row, col int) [][]T {
+	matrix := make([][]T, row)
+	for i := range matrix {
+		matrix[i] = make([]T, col)
+	}
+	return matrix
 }
