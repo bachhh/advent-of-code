@@ -200,3 +200,12 @@ func NewMatrix[T any](row, col int) [][]T {
 	}
 	return matrix
 }
+
+func CloneMatrix[T any](matrix [][]T) [][]T {
+	cloneMatrix := make([][]T, len(matrix[0]))
+	for i := range matrix {
+		cloneMatrix[i] = make([]T, len(matrix[i]))
+		copy(cloneMatrix[i], matrix[i])
+	}
+	return cloneMatrix
+}
