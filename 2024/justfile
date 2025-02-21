@@ -1,0 +1,2 @@
+run DAY:
+    cd day{{DAY}} && go run main.go

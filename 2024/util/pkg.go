@@ -1,6 +1,7 @@
 package util
 
 import (
+	"bufio"
 	"fmt"
 	"strconv"
 )
@@ -93,6 +94,48 @@ const (
 	NorthWest
 )
 
+var ManhattanDirs = []Direction{
+	North,
+	East,
+	South,
+	West,
+}
+
+var ChebysevDirs = []Direction{
+	North,
+	East,
+	South,
+	West,
+	NorthEast,
+	SouthEast,
+	SouthWest,
+	NorthWest,
+}
+
+// String method to implement fmt.Stringer interface
+func (d Direction) String() string {
+	switch d {
+	case North:
+		return "North"
+	case East:
+		return "East"
+	case South:
+		return "South"
+	case West:
+		return "West"
+	case NorthEast:
+		return "NorthEast"
+	case SouthEast:
+		return "SouthEast"
+	case SouthWest:
+		return "SouthWest"
+	case NorthWest:
+		return "NorthWest"
+	default:
+		return "Unknown Direction"
+	}
+}
+
 type Pair struct {
 	Row, Col int
 }
@@ -167,6 +210,10 @@ func (q *Queue[T]) Pop() (T, bool) {
 	return ret, true
 }
 
+func (q *Queue[T]) IsEmpty() bool {
+	return q.size == 0
+}
+
 func (q *Queue[T]) Size() int {
 	return q.size
 }
@@ -193,6 +240,21 @@ func Abs[T Number](val T) T {
 	return val
 }
 
+func Min[T Number](a, b T) T {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+// Max returns the larger of two comparable values.
+func Max[T Number](a, b T) T {
+	if a > b {
+		return a
+	}
+	return b
+}
+
 func NewMatrix[T any](row, col int) [][]T {
 	matrix := make([][]T, row)
 	for i := range matrix {
@@ -202,10 +264,34 @@ func NewMatrix[T any](row, col int) [][]T {
 }
 
 func CloneMatrix[T any](matrix [][]T) [][]T {
-	cloneMatrix := make([][]T, len(matrix[0]))
+	cloneMatrix := make([][]T, len(matrix))
 	for i := range matrix {
 		cloneMatrix[i] = make([]T, len(matrix[i]))
 		copy(cloneMatrix[i], matrix[i])
 	}
 	return cloneMatrix
+}
+
+func ScanMatrix(scanner *bufio.Scanner) [][]byte {
+	var matrix [][]byte
+
+	for scanner.Scan() {
+		bytes := scanner.Bytes()
+		if len(bytes) == 0 {
+			break
+		}
+		matrix = append(matrix, CloneSlice(bytes))
+	}
+	return matrix
+}
+
+func FindMatrix[T any](matrix [][]T, foo func(T) bool) (int, int) {
+	for i := range matrix {
+		for j := range matrix[i] {
+			if foo(matrix[i][j]) {
+				return i, j
+			}
+		}
+	}
+	return -1, -1
 }
