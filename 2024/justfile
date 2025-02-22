@@ -1,2 +1,5 @@
 run DAY:
     cd day{{DAY}} && go run main.go
+
+new DAY:
+    cp -r template day{{DAY}}

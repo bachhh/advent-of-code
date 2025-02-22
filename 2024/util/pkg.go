@@ -295,3 +295,11 @@ func FindMatrix[T any](matrix [][]T, foo func(T) bool) (int, int) {
 	}
 	return -1, -1
 }
+
+func CloneMap[K comparable, V any](m map[K]V) map[K]V {
+	cl := map[K]V{}
+	for k, v := range m {
+		cl[k] = v
+	}
+	return cl
+}
