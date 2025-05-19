@@ -28,7 +28,8 @@ func main() {
 		defer pprof.StopCPUProfile()
 	}
 
-	file, err := os.Open("input.txt")
+	inputFile := flag.Arg(0)
+	file, err := os.Open(inputFile)
 	if err != nil {
 		panic(err)
 	}

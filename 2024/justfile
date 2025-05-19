@@ -1,5 +1,12 @@
 run DAY:
-    cd day{{DAY}} && go run main.go
+    cd day{{DAY}} && go run main.go -- input.txt
+
+test DAY:
+    cd day{{DAY}} && go run main.go -- test_input.txt
 
 new DAY:
     cp -r template day{{DAY}}
+
+submit DAY:
+    OUTPUT=$(just --justfile justfile run "$DAY") 
+    submit.sh {{DAY}}

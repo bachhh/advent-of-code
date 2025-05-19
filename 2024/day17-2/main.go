@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"math"
 	"os"
 	"runtime/pprof"
 	"slices"
@@ -32,7 +33,7 @@ func main() {
 		defer pprof.StopCPUProfile()
 	}
 
-	file, err := os.Open("input.txt")
+	file, err := os.Open("test_input.txt")
 	if err != nil {
 		panic(err)
 	}
@@ -69,17 +70,14 @@ func main() {
 		}
 	}
 
-	// fmt.Println(registers)
-	// fmt.Println(opcodes)
-	// fmt.Println(registers)
-
 	fmt.Println(registers, opcodes)
 	maxLen := 0
 	// start := 10000000000000
-	start := 0
-	limit := 512
+	start := 117440
+	runCounts := 1
+	// fmt.Println(printHighlightBits(117440, 3, 3))
 
-	for a := start; a <= limit; a++ {
+	for a := start; a < start+runCounts; a++ {
 		registers["A"] = a
 		output := run(registers, opcodes)
 		if len(output) > maxLen {
@@ -100,62 +98,73 @@ func main() {
 func run(registers map[string]int, opcodes []int) []int {
 	var output []int
 	reg := util.CloneMap(registers)
+	fmt.Println("before run ", printHighlightBits(reg["A"], 999, 3))
 	insPtr := 0
 	for {
 		if insPtr >= len(opcodes) {
 			break
 		}
-		Eval(reg, opcodes[insPtr], opcodes[insPtr+1], &insPtr, &output)
+		mod8xor3 := (reg["A"] % 8) ^ 3
+		aHighLight := printHighlightBits(reg["A"], mod8xor3, 3)
+
+		aHighLight2 := printHighlightBits(reg["A"]/(1<<mod8xor3), 99, 9)
+		before := fmt.Sprintf("%s -%d - %03b\n", aHighLight, mod8xor3, reg["A"]%8)
+		if Eval(reg, opcodes[insPtr], opcodes[insPtr+1], &insPtr, &output) {
+			fmt.Println(aHighLight2)
+			fmt.Println(before, output, fmt.Sprintf("C:%03b B:%03b", reg["C"], reg["B"]))
+		}
 		// fmt.Println("step", reg["A"])
 	}
 	return output
 }
 
-func Eval(registers map[string]int, opcode, operand int, insPtr *int, output *[]int) bool {
+func Eval(reg map[string]int, opcode, operand int, insPtr *int, output *[]int) bool {
+	hasOutput := false
+	comboOp := comboOperand(reg, operand)
 	switch Opcode(opcode) {
-
 	case adv:
-		result := registers["A"] / (1 << comboOperand(registers, operand))
+		result := reg["A"] / (1 << comboOp)
 		result = trunc(result)
-		registers["A"] = result
+		reg["A"] = result
 
 	case bdv:
-		result := registers["A"] / (1 << comboOperand(registers, operand))
+		result := reg["A"] / (1 << comboOp)
 		result = trunc(result)
-		registers["B"] = result
+		reg["B"] = result
 
 	case cdv:
-		result := registers["A"] / (1 << comboOperand(registers, operand))
+		result := reg["A"] / (1 << comboOp)
 		result = trunc(result)
-		registers["C"] = result
+		reg["C"] = result
 
 	case bxl:
-		result := registers["B"] ^ operand
-		registers["B"] = result
+		result := reg["B"] ^ operand
+		reg["B"] = result
 
 	case bst:
-		result := comboOperand(registers, operand) % 8
-		registers["B"] = result
+		result := comboOp % 8
+		reg["B"] = result
 
 	case jnz:
-		if registers["A"] == 0 {
+		if reg["A"] == 0 {
 			break
 		}
 		*insPtr = operand
 		goto DONE
 
 	case bxc:
-		results := registers["B"] ^ registers["C"]
-		registers["B"] = results
+		results := reg["B"] ^ reg["C"]
+		reg["B"] = results
 
 	case out:
-		*output = append(*output, comboOperand(registers, operand)%8)
+		*output = append(*output, comboOp%8)
+		hasOutput = true
 
 	}
 	*insPtr = *insPtr + 2
 
 DONE:
-	return true
+	return hasOutput
 }
 
 func comboOperand(registers map[string]int, i int) int {
@@ -203,3 +212,89 @@ const (
 	// same as adv but write to c
 	cdv
 )
+
+// 2,4  → B = A MOD 8
+// 1,3  → B = B XOR 3
+// 7,5  → C = A DIV 2^B
+// 0,3  → A = A DIV 2^3
+// 1,5  → B = B XOR B  (effectively setting B = 0)
+// 4,1  → B = B XOR C  (B = C)
+// 5,5  → OUTPUT B MOD 8
+// 3,0  → IF A ≠ 0 THEN GOTO 0
+
+// 001 XOR 011 = 010
+// 010 XOR 011 = 001
+// 011 XOR 011 = 000
+// 100 XOR 011 = 111
+// 101 XOR 011 = 110
+// 110 XOR 011 = 101
+// 111 XOR 011 = 100
+
+// 0 3  5 4 3 0
+//  3    4   5   3  0
+
+// 0b
+
+// 000 011 100 101 011 000 000
+// 000 011 100 101 011 000
+// 000 011 100 101 011
+// 000 011 100 101
+// 000 011 100
+// 000 011
+// 000
+//
+
+// 000 3   4    5   3  0    0
+// 000 011 100 101 011 000 000
+
+// 1. mod 8 = 000 -> XOR 3 = 011 => C = a DIV 2^1 = 000 mod 8 = 0
+// 100 011 = 111
+
+// 11100101011000
+// 1. mod 8 = 000 -> XOR 3 = 011 => C = a DIV 2^3 = 011000 mod 8 = 0
+// 001 xOR 011 = 010 = 2
+// 111001 >> 2 =  1110
+// 1 <<  2 = 100
+// 111001
+
+// ANSI escape codes for red color
+const (
+	redStart = "\033[31m" // Start red text
+	redEnd   = "\033[0m"  // Reset color
+)
+
+// print A in binary form, but highlight <count> bits, offset by <offset> from the least significant bits of A.
+// print in big endian
+
+// printHighlightBits prints A in binary form (big-endian),
+// highlighting <count> bits starting at <offset> from LSB in red.
+func printHighlightBits(A int, offset int, count int) string {
+	var padLen int
+	if A == 0 {
+		padLen = 1
+	} else {
+		padLen = int(math.Log2(float64(A))) + 1
+	}
+
+	if padLen%3 != 0 {
+		padLen = padLen + (3 - padLen%3)
+	}
+
+	// Convert A to a binary string (ensure 32-bit representation)
+	binStr := fmt.Sprintf("%0*b", padLen, A)
+
+	// Reverse indexing to locate bits from the right
+	length := len(binStr)
+	result := ""
+
+	for i := 0; i < length; i++ {
+		if i >= length-1-offset-count+1 && i <= length-1-offset {
+			// Highlight in red
+			result += redStart + string(binStr[i]) + redEnd
+		} else {
+			result += string(binStr[i])
+		}
+	}
+
+	return result
+}
