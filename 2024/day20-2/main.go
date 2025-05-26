@@ -85,38 +85,27 @@ func Solve(start, end Pair, maze [][]byte) {
 	// fmt.Printf("%+v\n", dist)
 	// fmt.Printf("%+v\n", path)
 
-	distSaved100Count := 0
+	minDistSaved := 100
+	const cheatLimit = 20
 	allDistSaved := map[int]int{}
-	for _, cur := range path {
-		for _, dir := range util.ManhattanDirs {
-			next1 := util.Walk(cur, dir)
-			if maze[next1.Row][next1.Col] == '#' {
-				for _, dir := range util.ManhattanDirs {
-					next2 := util.Walk(next1, dir)
-					if !util.IsPairInbound(next2, maze) ||
-						next2 == cur ||
-						dist[next2] < dist[cur] ||
-						false {
-						continue
-					}
-
-					if maze[next2.Row][next2.Col] != '#' {
-						distSaved := util.Abs(dist[cur]-dist[next2]) - 2
-						if distSaved > 0 {
-							if distSaved >= 100 {
-								distSaved100Count++
-							}
-							allDistSaved[distSaved]++
-							fmt.Printf("saved %d dist by skipping from %+v to %+v\n",
-								distSaved,
-								cur,
-								next2,
-							)
-						}
+	count := 0
+	for i, cur := range path {
+		if cur == end {
+			continue
+		}
+		for _, next := range path[i+1:] {
+			if next != cur {
+				step := util.ManhattanDistance(cur, next)
+				if step <= cheatLimit {
+					distSaved := util.Abs(dist[cur]-dist[next]) - step
+					if distSaved >= minDistSaved {
+						allDistSaved[distSaved]++
+						count++
 					}
 				}
 			}
 		}
 	}
-	fmt.Println(distSaved100Count)
+	fmt.Println(allDistSaved)
+	fmt.Println(count)
 }

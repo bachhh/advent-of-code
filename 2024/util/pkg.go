@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"strconv"
+	"strings"
 )
 
 func CloneSlice[T ~[]E, E any](slice T) T {
@@ -163,6 +164,10 @@ func Walk(point Pair, dir Direction) Pair {
 	panic(fmt.Sprintf("unknown direction %d", dir))
 }
 
+func ManhattanDistance(from, to Pair) int {
+	return Abs(from.Row-to.Row) + Abs(from.Col-to.Col)
+}
+
 func IsPairInbound[T any](point Pair, matrix [][]T) bool {
 	return point.Row >= 0 && point.Row < len(matrix) && point.Col >= 0 && point.Col < len(matrix[0])
 }
@@ -302,4 +307,24 @@ func CloneMap[K comparable, V any](m map[K]V) map[K]V {
 		cl[k] = v
 	}
 	return cl
+}
+
+// from 2024, day 20, convert a path from Pair to Pair to arrow notation:
+// there are only 2 most efficient ways to move in Manhattan space: you can
+// just move along the row first, or move along column first
+func ManhattanPathToArrow(from, to Pair) (string, string) {
+	rMove, cMove := "", ""
+	rowDiff := to.Row - from.Row
+	colDiff := to.Col - from.Col
+	if rowDiff < 0 {
+		rMove = strings.Repeat("^", Abs(rowDiff))
+	} else if rowDiff > 0 {
+		rMove = strings.Repeat("v", Abs(rowDiff))
+	}
+	if colDiff < 0 {
+		cMove = strings.Repeat("<", Abs(colDiff))
+	} else if colDiff > 0 {
+		cMove = strings.Repeat(">", Abs(colDiff))
+	}
+	return rMove + cMove, cMove + rMove
 }
