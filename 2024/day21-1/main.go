@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"runtime/pprof"
+	"sort"
 	"strconv"
 
 	"aoc2024/util"
@@ -51,47 +52,66 @@ func main() {
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		input := scanner.Text()
+		util.Debugln(input)
 		first := NumericToArrowConvert(input)
-		second := ArrowToArrowConvert(first)
-		third := ArrowToArrowConvert(second)
+		util.Debugln(first[0])
+		second := []string{}
+		second = append(second, ArrowToArrowConvert(first[0])...)
+		util.Debugln(second[0])
+
+		third := []string{}
+		third = append(third, ArrowToArrowConvert(second[0])...)
+		util.Debugln(third[0])
+		sort.Slice(third, func(i, j int) bool {
+			return len(third[i]) < len(third[j])
+		})
+
+		output := third[0]
 
 		fmt.Println(
-			inputScore(input), len(third),
-
-			input, ":", third)
+			inputScore(input), len(output),
+			input, ":", third,
+		)
 		total += inputScore(input) * len(third)
 	}
+
 	fmt.Println(total)
 }
 
-func NumericToArrowConvert(numeric string) string {
+func NumericToArrowConvert(input string) []string {
 	cur := byte('A')
 	result := ""
-	for _, b := range numeric {
+	for _, b := range input {
 		move1, _ := util.ManhattanPathToArrow(
 			numericPos[cur],
 			numericPos[byte(b)],
 		)
-		move1 += "A"
+		result = result + move1 + "A"
 		cur = byte(b)
-		result += move1
 	}
-	return result
+	return []string{result}
 }
 
-func ArrowToArrowConvert(numeric string) string {
+func ArrowToArrowConvert(input string) []string {
 	cur := byte('A')
-	result := ""
-	for _, b := range numeric {
-		move1, _ := util.ManhattanPathToArrow(
+	result := []string{""}
+	for _, b := range input {
+		next := []string{}
+		move1, move2 := util.ManhattanPathToArrow(
 			arrowPos[cur],
 			arrowPos[byte(b)],
 		)
 		move1 += "A"
-		// fmt.Println(move1, "\t", string(cur))
+		move2 += "A"
 		cur = byte(b)
-		result += move1
+		for i := range result {
+			next = append(next, result[i]+move1)
+			// next = append(next, result[i]+move2)
+		}
+		result = next
+		// util.Debugln(result)
 	}
+	// util.Debugln(result)
 	return result
 }
 

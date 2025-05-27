@@ -1,8 +1,9 @@
-run DAY:
-    cd day{{DAY}} && go run main.go -- input.txt
+run DAY DEBUG:
+    cd day{{DAY}} && go run main.go {{DEBUG}} -- input.txt
 
-test DAY:
-    cd day{{DAY}} && go run main.go -- test_input.txt
+test DAY DEBUG:
+    cd day{{DAY}} && go run main.go {{DEBUG}} -- test_input.txt
+
 
 new DAY:
     cp -r template day{{DAY}}
