@@ -149,7 +149,7 @@ func (root *RadixTree) findLongestCommonPrefixChild(input string) (string, strin
 }
 
 func longestCommonPrefix(a, b string) (string, int) {
-	minLen := Min(len(a), len(b))
+	minLen := min(len(a), len(b))
 	commonPrefix := strings.Builder{}
 	i := 0
 	for ; i < minLen; i++ {

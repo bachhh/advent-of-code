@@ -2,9 +2,9 @@ package util
 
 import (
 	"bufio"
+	"cmp"
 	"fmt"
 	"strconv"
-	"strings"
 )
 
 func CloneSlice[T ~[]E, E any](slice T) T {
@@ -245,21 +245,6 @@ func Abs[T Number](val T) T {
 	return val
 }
 
-func Min[T Number](a, b T) T {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-// Max returns the larger of two comparable values.
-func Max[T Number](a, b T) T {
-	if a > b {
-		return a
-	}
-	return b
-}
-
 func NewMatrix[T any](row, col int) [][]T {
 	matrix := make([][]T, row)
 	for i := range matrix {
@@ -309,22 +294,33 @@ func CloneMap[K comparable, V any](m map[K]V) map[K]V {
 	return cl
 }
 
-// from 2024, day 20, convert a path from Pair to Pair to arrow notation:
-// there are only 2 most efficient ways to move in Manhattan space: you can
-// just move along the row first, or move along column first
-func ManhattanPathToArrow(from, to Pair) (string, string) {
-	rMove, cMove := "", ""
-	rowDiff := to.Row - from.Row
-	colDiff := to.Col - from.Col
-	if rowDiff < 0 {
-		rMove = strings.Repeat("^", Abs(rowDiff))
-	} else if rowDiff > 0 {
-		rMove = strings.Repeat("v", Abs(rowDiff))
+func IsCollinear(a, b, c Pair) bool {
+	// Check vertical alignment
+	if a.Row == b.Row && b.Row == c.Row {
+		return IsInIntervalIncl(b.Col, a.Col, c.Col)
 	}
-	if colDiff < 0 {
-		cMove = strings.Repeat("<", Abs(colDiff))
-	} else if colDiff > 0 {
-		cMove = strings.Repeat(">", Abs(colDiff))
+
+	// Check horizontal alignment
+	if a.Col == b.Col && b.Col == c.Col {
+		return IsInIntervalIncl(b.Row, a.Row, c.Row)
 	}
-	return rMove + cMove, cMove + rMove
+
+	// Not collinear in horizontal or vertical direction
+	return false
+}
+
+// check if A is in the interval [x, y] inclusive
+func IsInIntervalIncl[T cmp.Ordered](a, x, y T) bool {
+	if x > y {
+		x, y = y, x
+	}
+	return a >= x && a <= y
+}
+
+// same as IsInIntervalIncl but exclusive, .e.g (x, y)
+func IsInIntervalExcl[T cmp.Ordered](a, x, y T) bool {
+	if x > y {
+		x, y = y, x
+	}
+	return a > x && a < y
 }

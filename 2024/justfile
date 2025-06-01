@@ -1,7 +1,7 @@
-run DAY DEBUG:
+run DAY DEBUG="":
     cd day{{DAY}} && go run main.go {{DEBUG}} -- input.txt
 
-test DAY DEBUG:
+test DAY DEBUG="":
     cd day{{DAY}} && go run main.go {{DEBUG}} -- test_input.txt
 
 
