@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"math"
 	"os"
 	"runtime/pprof"
 	"slices"
@@ -129,7 +130,7 @@ var arrowToArrowCache = map[string]string{}
 
 func ArrowToArrow(
 	input string,
-	mode int, // 0 = single, 1 = multi, use all cases, 2= optimized: only pick the best score
+	mode int, // 0 = single, 1 = multi, use all cases, 2 = optimized: only pick the best score
 ) []string {
 	result := []string{""}
 	for input != "" {
@@ -142,8 +143,12 @@ func ArrowToArrow(
 				return in + cache
 			})
 		}
-		output := arrowToArrow(section, 0)
-		arrowToArrowCache[section] = actualWork
+
+		workOutput := arrowToArrow(section, 1)
+		arrowToArrowCache[section] = workOutput[0]
+		util.MapFunc(result, func(in string) string {
+			return in + workOutput[0]
+		})
 	}
 	return result
 }
@@ -164,17 +169,29 @@ func arrowToArrow(
 		cur = byte(b)
 		for i := range result {
 			switch mode {
-			case 0:
+			case 0: // when in this mode, len(result) will always be 1
 				next = append(next, result[i]+moves[0]+"A")
 			case 1:
 				for j := range moves {
-					moves[j] += "A"
+					next = append(next, result[i]+moves[j]+"A")
 				}
+			case 2: // when in this mode, len(result) will always be 1
+				lowestScore, lowestStr := math.MaxInt, ""
 				for j := range moves {
-					next = append(next, result[i]+moves[j])
+					if score, found := scoreCacheDepth2[moves[j]+"A"]; found {
+						if score < lowestScore {
+							lowestScore, lowestStr = score, moves[j]+"A"
+						}
+					}
 				}
-			case 2:
-				panic(2)
+				if lowestStr != "" {
+					next = append(next, result[i]+lowestStr)
+				} else {
+					for j := range moves {
+						next = append(next, result[i]+moves[j]+"A")
+					}
+				}
+
 			}
 		}
 		result = next
@@ -295,7 +312,7 @@ func initCache() {
 	allTest = append(allTest, "")
 	for i := range allTest {
 		allTest[i] += "A"
-		output := bestMoveArrow(allTest[i], 3)
+		output := bestMoveArrow(allTest[i], 6)
 		// allTest[i], len(output[0]))
 		scoreCacheDepth2[allTest[i]] = len(output[0])
 		fmt.Println(allTest[i], len(output[0]))
