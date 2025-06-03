@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"flag"
+	"fmt"
 	"log"
 	"os"
 	"runtime/pprof"
@@ -35,4 +36,5 @@ func main() {
 	}
 	defer file.Close()
 	scanner := bufio.NewScanner(file)
+	fmt.Println(scanner)
 }

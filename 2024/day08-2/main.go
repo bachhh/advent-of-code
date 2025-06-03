@@ -6,8 +6,6 @@ import (
 	"log"
 	"os"
 	"runtime/pprof"
-
-	"aoc2024/util"
 )
 
 func main() {
@@ -34,19 +32,7 @@ func main() {
 
 	scanner := bufio.NewScanner(file)
 
-	for row := 0; scanner.Scan(); row++ {
-		cp := util.CloneSlice(scanner.Bytes())
-		// fmt.Println(string(cp))
-
-		matrix = append(matrix, cp)
-		for col := range cp {
-			// if cp
-			char := cp[col]
-			// fmt.Println(char, IsAlphaNumeric(char))
-			if util.IsAlphaNumeric(char) {
-				antenMap[char] = append(antenMap[char], Pair{Row: row, Col: col})
-			}
-		}
+	for scanner.Scan() {
 	}
 }
 

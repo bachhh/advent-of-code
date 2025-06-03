@@ -6,3 +6,11 @@ func MapFunc[T any](s []T, f func(T) T) []T {
 	}
 	return s
 }
+
+func UnfoldSlice(input []string, transformer func(string) []string) []string {
+	result := []string{}
+	for i := range input {
+		result = append(result, transformer(input[i])...)
+	}
+	return result
+}

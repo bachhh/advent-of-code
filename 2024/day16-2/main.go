@@ -160,7 +160,7 @@ func getTurningScore(before, after util.Direction) int {
 	clockWise := util.Abs(int(after) - int(before))
 	antiClockWise := 4 - util.Abs(int(before)-int(after))
 
-	return util.Min(clockWise, antiClockWise) * 1000
+	return min(clockWise, antiClockWise) * 1000
 }
 
 func (s *Step) PosString() string {

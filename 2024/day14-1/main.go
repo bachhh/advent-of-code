@@ -77,16 +77,6 @@ func main() {
 		matrix[finalPosY][finalPosX]++
 	}
 
-	util.PrintMatrixTransform(matrix, func(i int) string {
-		var str string
-		if i == 0 {
-			str = "."
-		} else {
-			str = strconv.Itoa(i)
-		}
-		return fmt.Sprintf("%3s", str)
-	})
-
 	total := 1
 	for _, count := range quardrantCount {
 		fmt.Println("count", count)

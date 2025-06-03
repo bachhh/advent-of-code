@@ -6,7 +6,6 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"math"
 	"os"
 	"runtime/pprof"
 	"slices"
@@ -65,46 +64,9 @@ func main() {
 		// total += inputScore(input) * len(minLenStr)
 	}
 	fmt.Println(total)
-	initCache()
 }
 
-func foo(input string) []string {
-	first := NumToArrow('A', input)
-	second := make([]string, len(first))
-	copy(second, first)
-	fmt.Println("len first", len(first), "len str first", len(first[0]))
-	fmt.Println(first[0])
-	for i := 0; i < 2; i++ {
-		second = unfold(second,
-			func(input string) []string {
-				return ArrowToArrow(input, 1)
-			})
-		slices.SortFunc(second, func(a, b string) int {
-			return cmp.Compare(len(a), len(b))
-		})
-
-		minLen := len(second[0])
-		for j := range second {
-			if len(second[j]) > minLen {
-				second = second[:j]
-				break
-			}
-		}
-		fmt.Println("len_second", len(second), "lenstrsecond", len(second[0]))
-		fmt.Println(second[0])
-	}
-
-	third := unfold(second, func(input string) []string {
-		return ArrowToArrow(input, 0)
-	})
-	fmt.Println("len third", len(third), "len string third", len(third[0]))
-	slices.SortFunc(second, func(a, b string) int {
-		return cmp.Compare(len(a), len(b))
-	})
-	fmt.Println(third[0])
-	return third[:1]
-}
-
+// movement part
 func NumToArrow(cur byte, input string) []string {
 	result := []string{""}
 	for _, b := range input {
@@ -126,37 +88,7 @@ func NumToArrow(cur byte, input string) []string {
 	return result
 }
 
-var arrowToArrowCache = map[string]string{}
-
-func ArrowToArrow(
-	input string,
-	mode int, // 0 = single, 1 = multi, use all cases, 2 = optimized: only pick the best score
-) []string {
-	result := []string{""}
-	for input != "" {
-		idx := strings.IndexByte(input, byte('A'))
-		section := input[:idx+1]
-		// do stuff
-		input = input[idx+1:]
-		if cache, found := arrowToArrowCache[section]; found {
-			result = util.MapFunc(result, func(in string) string {
-				return in + cache
-			})
-		}
-
-		workOutput := arrowToArrow(section, 1)
-		arrowToArrowCache[section] = workOutput[0]
-		util.MapFunc(result, func(in string) string {
-			return in + workOutput[0]
-		})
-	}
-	return result
-}
-
-func arrowToArrow(
-	input string,
-	mode int, // 0 = single, 1 = multi, use all cases, 2= optimized: only pick the best score
-) []string {
+func ArrowToArrow(input string) []string {
 	cur := byte('A')
 	result := []string{""}
 	for _, b := range input {
@@ -168,35 +100,45 @@ func arrowToArrow(
 		)
 		cur = byte(b)
 		for i := range result {
-			switch mode {
-			case 0: // when in this mode, len(result) will always be 1
-				next = append(next, result[i]+moves[0]+"A")
-			case 1:
-				for j := range moves {
-					next = append(next, result[i]+moves[j]+"A")
-				}
-			case 2: // when in this mode, len(result) will always be 1
-				lowestScore, lowestStr := math.MaxInt, ""
-				for j := range moves {
-					if score, found := scoreCacheDepth2[moves[j]+"A"]; found {
-						if score < lowestScore {
-							lowestScore, lowestStr = score, moves[j]+"A"
-						}
-					}
-				}
-				if lowestStr != "" {
-					next = append(next, result[i]+lowestStr)
-				} else {
-					for j := range moves {
-						next = append(next, result[i]+moves[j]+"A")
-					}
-				}
-
+			for j := range moves {
+				next = append(next, result[i]+moves[j]+"A")
 			}
 		}
 		result = next
 	}
 	return result
+}
+
+func init() {
+	node := ArrowToArrowTree("^^^<A")
+	node.PrintTree()
+}
+
+func ArrowToArrowTree(input string) *util.TreeNode[string] {
+	cur := byte('A')
+	root := &util.TreeNode[string]{Value: input}
+	curNodes := []*util.TreeNode[string]{root}
+
+	for _, b := range input {
+		moves := move(
+			arrowPos[cur],
+			arrowPos[byte(b)],
+			Pair{Row: 0, Col: 0},
+		)
+		cur = byte(b)
+
+		next := []*util.TreeNode[string]{}
+
+		for i := range curNodes {
+			for j := range moves {
+				child := &util.TreeNode[string]{Value: curNodes[i].Value + moves[j] + "A"}
+				curNodes[i].Children = append(curNodes[i].Children, child)
+				next = append(next, child)
+			}
+		}
+		curNodes = next
+	}
+	return root
 }
 
 // convert from current pos -> arrow sequence
@@ -264,16 +206,6 @@ func move(from, to Pair, forbidden Pair) []string {
 	return result
 }
 
-func minLen(input []string) string {
-	str := ""
-	for i := range input {
-		if len(input[i]) < len(str) || str == "" {
-			str = input[i]
-		}
-	}
-	return str
-}
-
 func unfold(input []string, transformer func(string) []string) []string {
 	result := []string{}
 	for i := range input {
@@ -284,27 +216,12 @@ func unfold(input []string, transformer func(string) []string) []string {
 
 var scoreCacheDepth2 = map[string]int{}
 
-func initCache() {
-	allTest := []string{}
-	for i := 1; i <= 3; i++ {
-		allTest = append(allTest, genMoves(i)...)
-	}
-	allTest = append(allTest, "")
-	for i := range allTest {
-		allTest[i] += "A"
-		output := bestMoveArrow(allTest[i], 6)
-		// allTest[i], len(output[0]))
-		scoreCacheDepth2[allTest[i]] = len(output[0])
-		fmt.Println(allTest[i], len(output[0]))
-	}
-}
-
 func bestMoveArrow(move string, depth int) []string {
 	second := []string{move}
 	for i := 0; i < depth; i++ {
 		second = unfold(second,
 			func(input string) []string {
-				return ArrowToArrow(input, 1)
+				return ArrowToArrow(input)
 			})
 		slices.SortFunc(second, func(a, b string) int {
 			return cmp.Compare(len(a), len(b))
@@ -320,7 +237,7 @@ func bestMoveArrow(move string, depth int) []string {
 	}
 
 	third := unfold(second, func(input string) []string {
-		return ArrowToArrow(input, 0)
+		return ArrowToArrow(input)
 	})
 	slices.SortFunc(second, func(a, b string) int {
 		return cmp.Compare(len(a), len(b))
