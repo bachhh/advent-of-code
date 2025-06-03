@@ -51,13 +51,20 @@ func (q *Queue[T]) Size() int {
 	return q.size
 }
 
-func (q *Queue[T]) Peek(val T) (T, bool) {
+func (q *Queue[T]) Peek() (T, bool) {
 	if q.size == 0 {
 		return *new(T), false
 	}
-	ret := q.array[q.front]
-	q.front = (q.front + 1) % len(q.array)
-	q.size--
+	return q.array[q.front], true
+}
 
-	return ret, true
+func (q *Queue[T]) ToSlice() []T {
+	if q.size == 0 {
+		return nil
+	}
+	result := make([]T, q.size)
+	for i := 0; i < q.size; i++ {
+		result[i] = q.array[(q.front+i)%len(q.array)]
+	}
+	return result
 }

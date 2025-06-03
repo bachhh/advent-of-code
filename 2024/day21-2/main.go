@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"cmp"
 	"flag"
 	"fmt"
 	"log"
@@ -113,13 +114,11 @@ func ArrowToArrow(input string) []string {
 
 func init() {
 	input := "^>A"
+
 	node := buildTreeOfArrow(input, 3)
 	// fmt.Println(input)
 	node.PrintTree()
-}
-
-func findOptimal(node *util.TreeNode[string]) string {
-	return ""
+	fmt.Println(optimalArrow(input))
 }
 
 func buildTreeOfArrow(input string, depth int) *util.TreeNode[string] {
@@ -132,7 +131,7 @@ func buildTreeOfArrow(input string, depth int) *util.TreeNode[string] {
 		for _, curNode := range curDepth {
 			moves := ArrowToArrow(curNode.Value)
 			for _, move := range moves {
-				newChild := &util.TreeNode[string]{Value: move}
+				newChild := &util.TreeNode[string]{Value: move, Parent: curNode}
 				curNode.Children = append(curNode.Children, newChild)
 
 				nextDepth = append(nextDepth, newChild)
@@ -218,25 +217,44 @@ func move(from, to Pair, forbidden Pair) []string {
 	return result
 }
 
-func unfold(input []string, transformer func(string) []string) []string {
-	result := []string{}
-	for i := range input {
-		result = append(result, transformer(input[i])...)
-	}
-	return result
-}
-
-var scoreCacheDepth2 = map[string]int{}
+// var scoreCacheDepth2 = map[string]int{}
 
 // for any given arrow input
 // return the next move sequence that leads to a shortest move sequence at the next 2 depth
 // also return the move at next 2 depths
-func bestMoveArrow(input string) (string, int) {
-	root := buildTreeOfArrow(input, 3)
+func optimalArrow(input string) (string, int) {
+	depth := 3
+	root := buildTreeOfArrow(input, depth)
+	root.PrintTree()
 	qu := util.NewQueue[*util.TreeNode[string]]()
 	qu.Push(root)
 	for !qu.IsEmpty() {
-		// cur := qu.Peek()
+		cur, _ := qu.Peek()
+		if len(cur.Children) == 0 {
+			break
+		}
+
+		cur, _ = qu.Pop()
+		if cur == nil {
+			panic("nil cur")
+		}
+
+		for _, child := range cur.Children {
+			if child != nil {
+				qu.Push(child)
+			}
+		}
 	}
-	return "", 0
+	leafNodeSlice := qu.ToSlice()
+	slices.SortFunc(leafNodeSlice, func(a, b *util.TreeNode[string]) int {
+		return cmp.Compare(len(a.Value), len(b.Value))
+	})
+
+	optimalScore := len(leafNodeSlice[0].Value)
+	curNode := leafNodeSlice[0]
+	for i := 1; i < depth; i++ {
+		curNode = curNode.Parent
+	}
+
+	return curNode.Value, optimalScore
 }
