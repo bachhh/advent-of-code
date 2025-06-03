@@ -75,7 +75,7 @@ func foo(input string) []string {
 	fmt.Println("len first", len(first), "len str first", len(first[0]))
 	fmt.Println(first[0])
 	for i := 0; i < 2; i++ {
-		second = transform(second,
+		second = unfold(second,
 			func(input string) []string {
 				return ArrowToArrow(input, 1)
 			})
@@ -94,7 +94,7 @@ func foo(input string) []string {
 		fmt.Println(second[0])
 	}
 
-	third := transform(second, func(input string) []string {
+	third := unfold(second, func(input string) []string {
 		return ArrowToArrow(input, 0)
 	})
 	fmt.Println("len third", len(third), "len string third", len(third[0]))
@@ -274,27 +274,7 @@ func minLen(input []string) string {
 	return str
 }
 
-// directions contains the possible move directions
-var directions = []rune{'^', 'v', '<', '>'}
-
-// gen recursively generates all move sequences up to given length
-func genMoves(length int) []string {
-	var results []string
-	var dfs func(path []rune, depth int)
-	dfs = func(path []rune, depth int) {
-		if depth == length {
-			results = append(results, string(path))
-			return
-		}
-		for _, dir := range directions {
-			dfs(append(path, dir), depth+1)
-		}
-	}
-	dfs([]rune{}, 0)
-	return results
-}
-
-func transform(input []string, transformer func(string) []string) []string {
+func unfold(input []string, transformer func(string) []string) []string {
 	result := []string{}
 	for i := range input {
 		result = append(result, transformer(input[i])...)
@@ -322,7 +302,7 @@ func initCache() {
 func bestMoveArrow(move string, depth int) []string {
 	second := []string{move}
 	for i := 0; i < depth; i++ {
-		second = transform(second,
+		second = unfold(second,
 			func(input string) []string {
 				return ArrowToArrow(input, 1)
 			})
@@ -339,7 +319,7 @@ func bestMoveArrow(move string, depth int) []string {
 		}
 	}
 
-	third := transform(second, func(input string) []string {
+	third := unfold(second, func(input string) []string {
 		return ArrowToArrow(input, 0)
 	})
 	slices.SortFunc(second, func(a, b string) int {
