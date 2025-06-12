@@ -12,7 +12,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"time"
 
 	"aoc2024/util"
 )
@@ -78,6 +77,29 @@ func main() {
 	fmt.Println(total)
 }
 
+func foo(num string) int {
+	cur := byte('A')
+	for _, char := range num {
+		moves := numToArrowCache[cur][byte(char)]
+		moves2 := []string{}
+		for _, move := range moves {
+			moves2 = slices.Concat(moves2, AtAManual(move))
+		}
+		for _, move := range moves2 {
+			// for each move, calculate the score at depth X
+		}
+		// compare and pick the best score,
+		// add score to total score
+		cur = byte(char)
+
+	}
+}
+
+// TODO
+func toScore(arrow string, depth int) int64 {
+	return -1
+}
+
 // movement part
 func NumToArrow(cur byte, input string) []string {
 	result := []string{""}
@@ -97,32 +119,6 @@ func NumToArrow(cur byte, input string) []string {
 		cur = byte(b)
 	}
 
-	return result
-}
-
-func AtACache(input string) []string {
-	result := []string{""}
-	for {
-		before, after, found := strings.Cut(input, "A")
-		if !found {
-			break
-		}
-		before, input = before+"A", after
-		next := []string{}
-		// fmt.Println("input", input)
-
-		moves, found := manualCache[before]
-		if !found {
-			panic("manualCache[before] " + before)
-		}
-		for i := range result {
-			for j := range moves {
-				next = append(next, result[i]+moves[j])
-			}
-		}
-		result = next
-
-	}
 	return result
 }
 
@@ -156,27 +152,11 @@ func AtAManual(input string) []string {
 // ['1']['9'] -> ">>^^" -> ">AA<^AA" 2 level
 var numToArrowCache = map[byte]map[byte][]string{}
 
-var (
-	manualCache = map[string][]string{
-		"A": {"A"},
-	}
-	optimalCache = map[string]string{}
-)
+var optimalCache = map[string]string{"A": "A"}
 
 func init() {
-	for a1 := range arrowPos {
-		for a2 := range arrowPos {
-			if a1 == a2 {
-				continue
-			}
-			moves := MoveArrow(a1, a2)
-			for _, move := range moves {
-				manualCache[move] = AtAManual(move)
-			}
-		}
-	}
 	// there are many solution for moving from A-B,
-	fmt.Println(manualCache)
+	// fmt.Println(manualCache)
 
 	// init cache for numeric
 	for pos1 := range numericPos {
@@ -200,45 +180,32 @@ func init() {
 	// now init cache for arrow position
 	// we calculate the move from arrow1 to arrow2 with the lowest score
 	// the score being
-	// for arrow1 := range arrowPos {
-	// 	for arrow2 := range arrowPos {
-	// 		if arrow1 == arrow2 {
-	// 			continue
-	// 		}
-	// 		moves := MoveArrow(arrow1, arrow2)
-	// 		for _, move := range moves {
-	// 			// fmt.Println(string(arrow1), string(arrow2), move)
-	// 			// time.Sleep(time.Second)
-	// 			// return
-	// 			// calculate the lowest score of this move
-	// 		}
-	// 	}
-	// }
 
-	fmt.Println(lowestScore2("v<A"))
-}
-
-func lowestScore2(input string) (string, int) {
-	type data map[string]int
-	root := &util.TreeNode[data]{Value: data{input: 1}}
-
-	qu := util.NewQueue[*util.TreeNode[data]]()
-	qu.Push(root)
-
-	for {
-		allNode := qu.PopAll()
-		for _, node := range allNode {
-			moves := AtACompact(node.Value)
-			fmt.Println(node.Value, moves)
-
-			for _, move := range moves {
-				newChild := node.AddChild(move)
-				qu.Push(newChild)
-
+	for arrow1 := range arrowPos {
+		for arrow2 := range arrowPos {
+			if arrow1 == arrow2 {
+				continue
+			}
+			moves := MoveArrow(arrow1, arrow2)
+			if len(moves) < 2 {
+				str, _ := lowestScore(moves[0])
+				optimalCache[moves[0]] = str
+			} else {
+				minScore, minStr := math.MaxInt, ""
+				for _, move := range moves {
+					str, score := lowestScore(move)
+					fmt.Println(move, str, score)
+					if score < minScore {
+						fmt.Println("found optimal move")
+						minScore, minStr = score, str
+					}
+				}
+				for _, move := range moves {
+					optimalCache[move] = minStr
+				}
+				fmt.Println()
 			}
 		}
-		time.Sleep(time.Second)
-		root.PrintTree(10)
 	}
 }
 
@@ -247,45 +214,49 @@ func lowestScore(input string) (string, int) {
 	qu := util.NewQueue[*util.TreeNode[string]]()
 	qu.Push(root)
 
-	for depth := 1; ; depth++ {
+	for depth := 1; depth <= 4; depth++ {
 		// evaluate the next depth from the current depth
-		allNode := qu.PopAll()
-		// time.Sleep(time.Second)
 
+		allNode := qu.PopAll()
 		for _, node := range allNode {
-			// fmt.Println("len", len(node.Value))
-			moves := AtACache(node.Value)
-			// fmt.Println("moveCount", len(moves))
+			moves := AtAManual(node.Value)
 			for _, move := range moves {
 				newChild := node.AddChild(move)
 				qu.Push(newChild)
 			}
 		}
-		fmt.Println("evaluate", depth)
-
-		// re-evaluate if we can decide which children is the optimal choice
-		childrenScore := util.MapFunc(root.Children, func(node *util.TreeNode[string]) int {
-			leaf := node.FindSmallestLeaf(func(a, b string) int {
-				return cmp.Compare(len(a), len(b))
-			})
-			return len(leaf.Value)
-		})
-
-		smallestScore, smallestChild := math.MaxInt, (*util.TreeNode[string])(nil)
-		found := false
-		for i, score := range childrenScore {
-			if smallestScore != math.MaxInt && score != smallestScore {
-				found = true
-			}
-			if score < smallestScore {
-				smallestScore, smallestChild = score, root.Children[i]
-			}
-		}
-		if found || len(root.Children) < 2 {
-			return smallestChild.Value, smallestScore
-		}
-		root.PrintTree(2)
 	}
+
+	// re-evaluate if we can decide which children is the optimal choice
+	childrenScore := util.MapFunc(root.Children, func(node *util.TreeNode[string]) int {
+		leaf := node.FindSmallestLeaf(func(a, b string) int {
+			return cmp.Compare(len(a), len(b))
+		})
+		return len(leaf.Value)
+	})
+
+	smallestScore, smallestChild := math.MaxInt, (*util.TreeNode[string])(nil)
+	found := false
+	for i, score := range childrenScore {
+		if smallestScore != math.MaxInt && score != smallestScore {
+			found = true
+		}
+		if score < smallestScore {
+			smallestScore, smallestChild = score, root.Children[i]
+		}
+	}
+
+	// root.PrintTree(4)
+
+	if found {
+		fmt.Println("---", input, "true smallest")
+		return smallestChild.Value, smallestScore
+	} else if len(root.Children) < 2 {
+		fmt.Println("---", input, "single child")
+		return smallestChild.Value, smallestScore
+	}
+
+	return "not found", smallestScore
 }
 
 // convert from current pos -> arrow sequence
@@ -383,23 +354,6 @@ func move(from, to Pair, forbidden Pair) []string {
 	return result
 }
 
-func AtACompact(input map[string]int) []map[string]int {
-	fmt.Printf("%+v\n", input)
-	result := []map[string]int{}
-	for str, count := range input {
-		moves := AtAManual(str)
-		next := []map[string]int{}
-		for _, move := range moves {
-			moveMap := multiplyMap(CompactArrow(move), count)
-			for _, cur := range result {
-				next = append(next, mergeMap(moveMap, cur))
-			}
-		}
-		result = next
-	}
-	return result
-}
-
 func ScoreCompact(compact map[string]int) int64 {
 	t := int64(0)
 	for k, v := range compact {
@@ -428,28 +382,4 @@ func CompactArrow(input string) map[string]int {
 	}
 	CompactArrowCache[input] = m
 	return m
-}
-
-func multiplyMap(a map[string]int, n int) map[string]int {
-	m := map[string]int{}
-	for k, v := range a {
-		m[k] = v * n
-	}
-	return m
-}
-
-func mergeMap(a, b map[string]int) map[string]int {
-	result := make(map[string]int)
-
-	// Copy all elements from map a
-	for key, value := range a {
-		result[key] = value
-	}
-
-	// Add or update elements from map b
-	for key, value := range b {
-		result[key] += value
-	}
-
-	return result
 }
