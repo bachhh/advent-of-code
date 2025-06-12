@@ -1,10 +1,11 @@
 package util
 
-func MapFunc[T any](s []T, f func(T) T) []T {
-	for i := range s {
-		s[i] = f(s[i])
+func MapFunc[T, S any](slice []T, f func(T) S) []S {
+	ret := make([]S, len(slice))
+	for i := range slice {
+		ret[i] = f(slice[i])
 	}
-	return s
+	return ret
 }
 
 func UnfoldSlice(input []string, transformer func(string) []string) []string {

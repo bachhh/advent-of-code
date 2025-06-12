@@ -43,6 +43,15 @@ func (q *Queue[T]) Pop() (T, bool) {
 	return ret, true
 }
 
+func (q *Queue[T]) PopAll() []T {
+	ret := []T{}
+	for !q.IsEmpty() {
+		n, _ := q.Pop()
+		ret = append(ret, n)
+	}
+	return ret
+}
+
 func (q *Queue[T]) IsEmpty() bool {
 	return q.size == 0
 }
