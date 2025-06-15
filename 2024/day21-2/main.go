@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"cmp"
 	"flag"
 	"fmt"
 	"log"
@@ -15,6 +14,8 @@ import (
 
 	"aoc2024/util"
 )
+
+type NodeStr util.TreeNode[string]
 
 /*
 // +---+---+---+
@@ -63,41 +64,52 @@ func main() {
 	total := int64(0)
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
-		// input := scanner.Text()
-		// result := foo(input)
-		// minLenStr := minLen(result)
-
-		// arrowScore := SolveCompact(input, 27)
-		// fmt.Println(
-		// 	inputScore(input), arrowScore,
-		// 	input, ":",
-		// )
-		// total += inputScore(input) * arrowScore
+		input := scanner.Text()
+		arrowScore := foo(input, 25)
+		fmt.Println(input, arrowScore, inputScore(input))
+		total += inputScore(input) * arrowScore
 	}
 	fmt.Println(total)
 }
 
-func foo(num string) int {
-	cur := byte('A')
-	for _, char := range num {
-		moves := numToArrowCache[cur][byte(char)]
-		moves2 := []string{}
-		for _, move := range moves {
-			moves2 = slices.Concat(moves2, AtAManual(move))
+func foo(numeric string, depth int) int64 {
+	var minScore int64 = math.MaxInt64
+	arrows := NumToArrow('A', numeric)
+	for _, arrow := range arrows {
+		score := SolveRecurse(arrow, depth)
+		if score < minScore {
+			minScore = score
 		}
-		for _, move := range moves2 {
-			// for each move, calculate the score at depth X
-		}
-		// compare and pick the best score,
-		// add score to total score
-		cur = byte(char)
-
 	}
+
+	return minScore
 }
 
-// TODO
-func toScore(arrow string, depth int) int64 {
-	return -1
+func SolveRecurse(input string, depth int) int64 {
+	if depth == 0 {
+		return int64(len(input))
+	}
+	if score, found := getCache(input, depth); found {
+		return score
+	}
+
+	sumScoreOfSegments := int64(0)
+	segments := splitSegment(input)
+	for _, seg := range segments {
+		moves := ArrowToArrow(seg)
+		minScoreOfSegment := int64(math.MaxInt64)
+		for _, move := range moves {
+			score := SolveRecurse(move, depth-1)
+			if score < minScoreOfSegment {
+				minScoreOfSegment = score
+			}
+			util.Debugln(depth, segments, score, score)
+		}
+		sumScoreOfSegments += minScoreOfSegment
+	}
+
+	addCache(input, depth, sumScoreOfSegments)
+	return sumScoreOfSegments
 }
 
 // movement part
@@ -124,7 +136,7 @@ func NumToArrow(cur byte, input string) []string {
 
 var AtAManualCache = map[string][]string{}
 
-func AtAManual(input string) []string {
+func ArrowToArrow(input string) []string {
 	if entry, found := AtAManualCache[input]; found {
 		return entry
 	}
@@ -146,117 +158,6 @@ func AtAManual(input string) []string {
 
 	AtAManualCache[input] = result
 	return result
-}
-
-// ['1']['9'] -> ">>^^", 1 level
-// ['1']['9'] -> ">>^^" -> ">AA<^AA" 2 level
-var numToArrowCache = map[byte]map[byte][]string{}
-
-var optimalCache = map[string]string{"A": "A"}
-
-func init() {
-	// there are many solution for moving from A-B,
-	// fmt.Println(manualCache)
-
-	// init cache for numeric
-	for pos1 := range numericPos {
-		if numToArrowCache[pos1] == nil {
-			numToArrowCache[pos1] = map[byte][]string{}
-		}
-
-		for pos2 := range numericPos {
-			if pos1 == pos2 {
-				continue
-			}
-			moves := MoveNum(pos1, pos2)
-			for _, move := range moves {
-				numToArrowCache[pos1][pos2] = slices.Concat(
-					numToArrowCache[pos1][pos2],
-					AtAManual(move))
-			}
-		}
-	}
-
-	// now init cache for arrow position
-	// we calculate the move from arrow1 to arrow2 with the lowest score
-	// the score being
-
-	for arrow1 := range arrowPos {
-		for arrow2 := range arrowPos {
-			if arrow1 == arrow2 {
-				continue
-			}
-			moves := MoveArrow(arrow1, arrow2)
-			if len(moves) < 2 {
-				str, _ := lowestScore(moves[0])
-				optimalCache[moves[0]] = str
-			} else {
-				minScore, minStr := math.MaxInt, ""
-				for _, move := range moves {
-					str, score := lowestScore(move)
-					fmt.Println(move, str, score)
-					if score < minScore {
-						fmt.Println("found optimal move")
-						minScore, minStr = score, str
-					}
-				}
-				for _, move := range moves {
-					optimalCache[move] = minStr
-				}
-				fmt.Println()
-			}
-		}
-	}
-}
-
-func lowestScore(input string) (string, int) {
-	root := &util.TreeNode[string]{Value: input}
-	qu := util.NewQueue[*util.TreeNode[string]]()
-	qu.Push(root)
-
-	for depth := 1; depth <= 4; depth++ {
-		// evaluate the next depth from the current depth
-
-		allNode := qu.PopAll()
-		for _, node := range allNode {
-			moves := AtAManual(node.Value)
-			for _, move := range moves {
-				newChild := node.AddChild(move)
-				qu.Push(newChild)
-			}
-		}
-	}
-
-	// re-evaluate if we can decide which children is the optimal choice
-	childrenScore := util.MapFunc(root.Children, func(node *util.TreeNode[string]) int {
-		leaf := node.FindSmallestLeaf(func(a, b string) int {
-			return cmp.Compare(len(a), len(b))
-		})
-		return len(leaf.Value)
-	})
-
-	smallestScore, smallestChild := math.MaxInt, (*util.TreeNode[string])(nil)
-	found := false
-	for i, score := range childrenScore {
-		if smallestScore != math.MaxInt && score != smallestScore {
-			found = true
-		}
-		if score < smallestScore {
-			smallestScore, smallestChild = score, root.Children[i]
-		}
-	}
-
-	// root.PrintTree(4)
-
-	if found {
-		fmt.Println("---", input, "true smallest")
-		return smallestChild.Value, smallestScore
-	} else if len(root.Children) < 2 {
-		fmt.Println("---", input, "single child")
-		return smallestChild.Value, smallestScore
-	}
-
-	return "not found", smallestScore
 }
 
 // convert from current pos -> arrow sequence
@@ -364,22 +265,32 @@ func ScoreCompact(compact map[string]int) int64 {
 
 var CompactArrowCache = map[string]map[string]int{}
 
-// turns an arrow pattern into compact form
-func CompactArrow(input string) map[string]int {
-	if entry, found := CompactArrowCache[input]; found {
-		return entry
-	}
-	m := map[string]int{}
-
+func splitSegment(input string) []string {
+	result := []string{}
 	for {
 		before, after, found := strings.Cut(input, "A")
 		if !found {
-			break
+			return result
 		}
-		pattern := before + "A"
-		m[pattern]++
-		input = after
+		before, input = before+"A", after
+
+		result = append(result, before)
 	}
-	CompactArrowCache[input] = m
-	return m
+}
+
+var solveRecurseCache = map[string]map[int]int64{}
+
+func addCache(str string, depth int, score int64) {
+	if solveRecurseCache[str] == nil {
+		solveRecurseCache[str] = map[int]int64{}
+	}
+	solveRecurseCache[str][depth] = score
+}
+
+func getCache(str string, depth int) (int64, bool) {
+	if solveRecurseCache[str] == nil {
+		return 0, false
+	}
+	score, found := solveRecurseCache[str][depth]
+	return score, found
 }
