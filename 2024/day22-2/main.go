@@ -14,6 +14,8 @@ import (
 
 type Pair = util.Pair
 
+const MAX_DEPTH = 2000
+
 func main() {
 	cpuprofile := flag.String("cpuprofile", "", "write cpu profile to file")
 	flag.Parse()
@@ -38,46 +40,70 @@ func main() {
 	defer file.Close()
 	scanner := bufio.NewScanner(file)
 
-	total := int64(0)
+	maxPrice, maxSeq := -999999, ""
 	for scanner.Scan() {
 		input := scanner.Text()
-		integer, err := strconv.ParseInt(input, 10, 64)
+		secret, err := strconv.ParseInt(input, 10, 64)
 		if err != nil {
 			panic(err)
 		}
 
-		fmt.Println(integer)
-	}
-	fmt.Println(total)
-}
-
-func checkPrice(b Buyer, seq []int) int {
-	for i := 0; i < len(b.delta); i++ {
-		for j := range seq {
-			if b.delta[i] != seq[j] {
-				goto SKIP
-			}
+		dprice := toSeq(secret)
+		mapPrice := toMapPrice(dprice)
+		// fmt.Println(dprice)
+		// fmt.Println(mapPrice)
+		for k, v := range mapPrice {
+			globalSeqToPriceMap[k] += v
 		}
-		// have a match
-		return b.price[i+len(seq)-1]
-	SKIP:
 	}
-	return -1
+
+	for seq, price := range globalSeqToPriceMap {
+		if price > maxPrice {
+			maxPrice, maxSeq = price, seq
+		}
+	}
+	fmt.Println(maxPrice, maxSeq)
 }
 
-func toSeq(secret int64) Buyer {
-	ret := Buyer{}
+var globalSeqToPriceMap = map[string]int{}
+
+func toMapPrice(input deltaAndPrice) map[string]int {
+	m := map[string]int{}
+	for i := 3; i < len(input.delta); i++ {
+		seqStr := toSeqString(input.delta[i-3 : i+1])
+		if _, found := m[seqStr]; found {
+			// not the first time this seq exists, skip
+			continue
+		}
+		m[seqStr] = input.price[i]
+	}
+	return m
+}
+
+var digits = [...]string{"-9", "-8", "-7", "-6", "-5", "-4", "-3", "-2", "-1", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9"}
+
+func toSeqString(in []int) string {
+	ret := ""
+	for _, num := range in {
+		ret += digits[num+9]
+	}
+	return ret
+}
+
+func toSeq(secret int64) deltaAndPrice {
+	ret := deltaAndPrice{}
 	prevPrice := secret % 10
-	for i := 0; i < 2000; i++ {
+	for i := 0; i < MAX_DEPTH; i++ {
 		secret = evolve(secret)
 		curPrice := secret % 10
 		ret.price = append(ret.price, int(curPrice))
 		ret.delta = append(ret.delta, int(curPrice-prevPrice))
 		prevPrice = curPrice
 	}
+	return ret
 }
 
-type Buyer struct {
+type deltaAndPrice struct {
 	delta []int
 	price []int
 }
