@@ -1,2 +1,3 @@
 new NAME:
     cp -r template {{NAME}}
+    cd {{NAME}} && cargo init
