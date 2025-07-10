@@ -111,7 +111,7 @@ func ArrowToArrow(input string) []string {
 
 func init() {
 	node := ArrowToArrowTree("^^^<A")
-	node.PrintTree()
+	node.PrintTree(1)
 }
 
 func ArrowToArrowTree(input string) *util.TreeNode[string] {

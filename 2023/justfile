@@ -1,0 +1,2 @@
+new NAME:
+    cp -r template {{NAME}}
